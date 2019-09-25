@@ -1,9 +1,10 @@
 from conditional_layers import *
 from spectral_normalized_layers import *
+from tensorflow.python.keras.models import Model, Input
 
 
 def test_conv_with_conv_spectal():
-    from keras.models import Model, Input
+    from tensorflow.python.keras.models import Model, Input
     import numpy as np
     from numpy.linalg import svd
     def kernel_init(shape):
@@ -58,7 +59,7 @@ def test_singular_val_for_convolution():
 
 
 def test_sn_dense():
-    from keras.models import Model, Input
+    
     import numpy as np
     from numpy.linalg import svd
     def kernel_init(shape):
@@ -84,7 +85,6 @@ def test_sn_dense():
 
 
 def test_sn_emb():
-    from keras.models import Model, Input
     import numpy as np
     from numpy.linalg import svd
     def kernel_init(shape):
@@ -108,7 +108,7 @@ def test_sn_emb():
 
 
 def test_iterations():
-    from keras.models import Model, Input
+    
     import numpy as np
     from numpy.linalg import svd
     def kernel_init(shape):
@@ -134,7 +134,7 @@ def test_iterations():
 
 
 def test_sn_conv2D():
-    from keras.models import Model, Input
+    
     import numpy as np
     from numpy.linalg import svd
     def kernel_init(shape):
@@ -162,7 +162,7 @@ def test_sn_conv2D():
 
 
 def test_sn_conditional_conv():
-    from keras.models import Model, Input
+    
     import numpy as np
     from numpy.linalg import svd
     def kernel_init(shape):
@@ -196,7 +196,7 @@ def test_sn_conditional_conv():
 
 
 def test_sn_conditional_conv_with_renorm():
-    from keras.models import Model, Input
+    
     import numpy as np
     from numpy.linalg import svd
     def kernel_init(shape):
@@ -226,7 +226,7 @@ def test_sn_conditional_conv_with_renorm():
 
 
 def test_sn_conditional_dense():
-    from keras.models import Model, Input
+    
     import numpy as np
     from numpy.linalg import svd
     def kernel_init(shape):
@@ -260,7 +260,7 @@ def test_sn_conditional_dense():
 
 
 def test_sn_conditional_dense_with_renorm():
-    from keras.models import Model, Input
+    
     import numpy as np
     from numpy.linalg import svd
     def kernel_init(shape):
@@ -291,7 +291,7 @@ def test_sn_conditional_dense_with_renorm():
 
 
 def test_sn_depthwise_with_renorm():
-    from keras.models import Model, Input
+    
     import numpy as np
     from numpy.linalg import svd
     def kernel_init(shape):
@@ -322,7 +322,7 @@ def test_sn_depthwise_with_renorm():
 
 
 def test_sn_depthwise():
-    from keras.models import Model, Input
+    
     import numpy as np
     from numpy.linalg import svd
     def kernel_init(shape):
@@ -356,7 +356,7 @@ def test_sn_depthwise():
 
 
 def test_conditional_dense():
-    from keras.models import Model, Input
+    
     import numpy as np
     def kernel_init(shape):
         np.random.seed(0)
@@ -379,7 +379,7 @@ def test_conditional_dense():
 
 
 def test_conditional_conv11():
-    from keras.models import Model, Input
+    
     import numpy as np
     def kernel_init(shape):
         np.random.seed(0)
@@ -400,7 +400,7 @@ def test_conditional_conv11():
 
 
 def test_conditional_instance():
-    from keras.models import Model, Input
+    
     import numpy as np
     def beta_init(shape):
         a = np.empty(shape)
@@ -422,7 +422,7 @@ def test_conditional_instance():
 
 
 def test_conditional_center_scale():
-    from keras.models import Model, Input
+    
     import numpy as np
     def beta_init(shape):
         a = np.empty(shape)
@@ -444,7 +444,7 @@ def test_conditional_center_scale():
 
 
 def test_center_scale():
-    from keras.models import Model, Input
+    
     import numpy as np
     def beta_init(shape):
         a = np.empty(shape)
@@ -464,7 +464,7 @@ def test_center_scale():
 
 
 def test_conditional_bn():
-    from keras.models import Model, Input
+    
     import numpy as np
     def beta_init(shape):
         a = np.empty(shape)
@@ -495,7 +495,7 @@ def test_conditional_bn():
 
 
 def test_conditional_conv():
-    from keras.models import Model, Input
+    
     import numpy as np
     def kernel_init(shape):
         a = np.empty(shape)
@@ -519,7 +519,7 @@ def test_conditional_conv():
 
 
 def test_triangular_conv11():
-    from keras.models import Model, Input
+    
     import numpy as np
     def kernel_init(shape):
         a = np.empty(shape)
@@ -542,7 +542,7 @@ def test_triangular_conv11():
 
 
 def test_triangular_factorized_conv11():
-    from keras.models import Model, Input
+    
     import numpy as np
     def kernel_init(shape):
         a = np.empty(shape)
@@ -568,7 +568,7 @@ def test_triangular_factorized_conv11():
 
 
 def test_deptwise_conv():
-    from keras.models import Model, Input
+    
     import numpy as np
     def kernel_init(shape):
         a = np.empty(shape)
@@ -600,8 +600,7 @@ def test_deptwise_conv():
     assert np.all(out[2, ..., 1] == 10)
 
 def test_decorelation():
-    from keras.models import Model, Input
-    from keras.layers import Lambda
+    
     import numpy as np
     def beta_init(shape):
         a = np.empty(shape)

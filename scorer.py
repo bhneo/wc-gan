@@ -3,10 +3,11 @@ from gan.fid import calculate_fid_given_arrays
 from gan.dataset import UGANDataset
 import numpy as np
 from tqdm import tqdm
-import keras.backend as K
+import tensorflow.python.keras.backend as K
 from skimage.io import imsave
 import os
 import pickle
+
 
 def draw_grid(fname, images, labels = None,  nrows = 10, ncols = 10):
     if labels is None:

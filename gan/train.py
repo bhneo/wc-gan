@@ -3,12 +3,12 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import pylab as plt
-import keras.backend as K
+import tensorflow.python.keras.backend as K
 assert K.image_data_format() == 'channels_last', "Backend should be tensorflow and data_format channel_last"
-from keras.backend import tf as ktf
-config = ktf.ConfigProto()
+import tensorflow as tf
+config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
-session = ktf.Session(config=config)
+session = tf.Session(config=config)
 K.set_session(session)
 from tqdm import tqdm
 
@@ -108,7 +108,7 @@ class Trainer(object):
         for _ in tqdm(range(int(self.dataset.number_of_batches_per_epoch()))):
             try:
                 self.train_one_step(discriminator_loss_list, generator_loss_list)
-            except ktf.errors.InvalidArgumentError as err:
+            except tf.errors.InvalidArgumentError as err:
                 print (err)
 
        
@@ -128,8 +128,8 @@ class Trainer(object):
                                                                       np.mean(np.array(discriminator_loss_list), axis=0))
             print (val_loss_str.replace('Generator loss', 'Validation loss'))
 
-        print "Discriminator lr %s" % K.get_value(self.gan.discriminator_optimizer.lr)
-        print "Generator lr %s" % K.get_value(self.gan.generator_optimizer.lr)
+        print("Discriminator lr %s" % K.get_value(self.gan.discriminator_optimizer.lr))
+        print("Generator lr %s" % K.get_value(self.gan.generator_optimizer.lr))
         
     def train(self):
         while self.current_epoch < self.last_epoch:

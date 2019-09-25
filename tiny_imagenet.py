@@ -1,4 +1,4 @@
-from keras.utils.data_utils import get_file
+from tensorflow.python.keras.utils.data_utils import get_file
 import os
 import numpy as np
 from skimage.transform import resize
@@ -43,7 +43,7 @@ def load_data():
                 X[i] = image
                 Y[i] = classes[cls]
                 i += 1
-        print i
+        print(i)
         return X, Y
 
     def load_test_images():
@@ -58,7 +58,7 @@ def load_data():
                     image = gray2rgb(image)
                 X[i] = image
                 i += 1
-        print i
+        print(i)
         return X, Y
     print ("Loading images...")
     X_train, Y_train = load_train_images()

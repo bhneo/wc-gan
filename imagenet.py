@@ -1,6 +1,6 @@
 import numpy as np
 from gan.dataset import LabeledArrayDataset
-from keras.preprocessing.image import ImageDataGenerator
+from tensorflow.python.keras.preprocessing.image import ImageDataGenerator
 from sklearn.utils import shuffle
 from tqdm import trange
 from skimage.io import imread
@@ -8,6 +8,7 @@ from skimage.transform import resize
 import os
 from PIL import ImageFile
 from skimage.color import gray2rgb
+
 
 class ImageNetdataset(LabeledArrayDataset):
     def __init__(self, folder_train, folder_val, batch_size=64, conditional=True,

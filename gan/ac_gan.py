@@ -1,6 +1,6 @@
-from keras.backend import tf as ktf
-from gan import GAN
-from keras.models import Input
+import tensorflow as tf
+from gan.gan import GAN
+from tensorflow.python.keras.models import Input
 
 
 class AC_GAN(GAN):
@@ -13,20 +13,20 @@ class AC_GAN(GAN):
 
     def additional_discriminator_losses(self):
         losses = []
-        cls_real = self.ce_weight_discriminator * ktf.reduce_mean(ktf.nn.sparse_softmax_cross_entropy_with_logits
-                   (labels=ktf.squeeze(self.additional_inputs_for_discriminator_train[0], axis=1),
+        cls_real = self.ce_weight_discriminator * tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits
+                   (labels=tf.squeeze(self.additional_inputs_for_discriminator_train[0], axis=1),
                     logits=self.discriminator_real_output[1]))
         self.discriminator_metric_names.append('cls_real')
         losses.append(cls_real)
         if self.classify_generated:
-            cls_fake = self.ce_weight_discriminator * ktf.reduce_mean(ktf.nn.sparse_softmax_cross_entropy_with_logits
-                   (labels=ktf.squeeze(self.generator_input[1], axis=1), logits=self.discriminator_fake_output[1]))
+            cls_fake = self.ce_weight_discriminator * tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits
+                   (labels=tf.squeeze(self.generator_input[1], axis=1), logits=self.discriminator_fake_output[1]))
             losses.append(cls_fake)
             self.discriminator_metric_names.append('cls_fake')
         return losses
 
     def additional_generator_losses(self):
-        cls_real = self.ce_weight_generator * ktf.reduce_mean(ktf.nn.sparse_softmax_cross_entropy_with_logits
-                   (labels=ktf.squeeze(self.generator_input[1], axis=1), logits=self.discriminator_fake_output[1]))
+        cls_real = self.ce_weight_generator * tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits
+                   (labels=tf.squeeze(self.generator_input[1], axis=1), logits=self.discriminator_fake_output[1]))
         self.generator_metric_names.append('cls')
         return [cls_real]

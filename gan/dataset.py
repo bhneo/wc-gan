@@ -7,6 +7,7 @@ from skimage.transform import resize
 from skimage import img_as_ubyte
 from sklearn.utils import shuffle
 
+
 class UGANDataset(object):
     def __init__(self, batch_size, noise_size):
         self._batch_size = batch_size

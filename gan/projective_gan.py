@@ -1,5 +1,6 @@
-from gan import GAN
-import keras.backend as K
+from gan.gan import GAN
+import tensorflow.python.keras.backend as K
+
 
 class ProjectiveGAN(GAN):
     def __init__(self, **kwargs):

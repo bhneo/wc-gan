@@ -1,9 +1,9 @@
-from keras.models import Model, Input
-from keras.layers import Dense, Flatten, Concatenate, Activation, Dropout
-from keras.layers.convolutional import Conv2D, Conv2DTranspose, ZeroPadding2D, Cropping2D
-from keras_contrib.layers.normalization import InstanceNormalization
-from keras.layers.advanced_activations import LeakyReLU
-import keras.backend as K
+from tensorflow.python.keras.models import Model, Input
+from tensorflow.python.keras.layers import Dense, Flatten, Concatenate, Activation, Dropout
+from tensorflow.python.keras.layers.convolutional import Conv2D, Conv2DTranspose, ZeroPadding2D, Cropping2D
+from tensorflow.python.keras.keras_contrib.layers.normalization import InstanceNormalization
+from tensorflow.python.keras.layers.advanced_activations import LeakyReLU
+import tensorflow.python.keras.backend as K
 
 from gan.dataset import UGANDataset
 from gan.cmd import parser_with_default_args

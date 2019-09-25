@@ -1,5 +1,6 @@
 import argparse
 
+
 def parser_with_default_args():
     """
         Define args that is used in default wgan_gp, you can add other args in client.

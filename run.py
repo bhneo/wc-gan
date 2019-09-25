@@ -1,4 +1,4 @@
-from keras.optimizers import Adam
+from tensorflow.python.keras.optimizers import Adam
 
 from gan.dataset import LabeledArrayDataset
 from gan.cmd import parser_with_default_args
@@ -17,12 +17,13 @@ from argparse import Namespace
 from generator import make_generator
 from discriminator import make_discriminator
 
-from keras import backend as K
-from keras.backend import tf as ktf
+from tensorflow.python.keras import backend as K
+import tensorflow as tf
+
 
 def get_dataset(dataset, batch_size, supervised = False, noise_size=(128, )):
     if dataset == 'mnist':
-        from keras.datasets import mnist
+        from tensorflow.python.keras.datasets import mnist
         (X, y), (X_test, y_test) = mnist.load_data()
         X = X.reshape((X.shape[0], X.shape[1], X.shape[2], 1))
         X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], X_test.shape[2], 1))
@@ -107,12 +108,12 @@ def get_lr_decay_schedule(args):
         lr_decay_schedule_generator = lambda iter: K.maximum(0., 1. - K.cast(iter, 'float32') / number_of_iters_generator)
         lr_decay_schedule_discriminator = lambda iter: K.maximum(0., 1. - K.cast(iter, 'float32') / number_of_iters_discriminator)
     elif args.lr_decay_schedule == 'half-linear':
-        lr_decay_schedule_generator = lambda iter: ktf.where(
+        lr_decay_schedule_generator = lambda iter: tf.where(
                                 K.less(iter, K.cast(number_of_iters_generator / 2, 'int64')),
-                                ktf.maximum(0., 1. - (K.cast(iter, 'float32') / number_of_iters_generator)), 0.5)
-        lr_decay_schedule_discriminator = lambda iter: ktf.where(
+                                tf.maximum(0., 1. - (K.cast(iter, 'float32') / number_of_iters_generator)), 0.5)
+        lr_decay_schedule_discriminator = lambda iter: tf.where(
                                 K.less(iter, K.cast(number_of_iters_discriminator / 2, 'int64')),
-                                ktf.maximum(0., 1. - (K.cast(iter, 'float32') / number_of_iters_discriminator)), 0.5)
+                                tf.maximum(0., 1. - (K.cast(iter, 'float32') / number_of_iters_discriminator)), 0.5)
     elif args.lr_decay_schedule == 'linear-end':
         decay_at = 0.828
 
@@ -123,20 +124,20 @@ def get_lr_decay_schedule(args):
         number_of_iters_after_decay_discriminator = number_of_iters_discriminator * (1 - decay_at)
 
 
-        lr_decay_schedule_generator = lambda iter: ktf.where(
+        lr_decay_schedule_generator = lambda iter: tf.where(
                                 K.greater(iter, K.cast(number_of_iters_until_decay_generator, 'int64')),
-                                ktf.maximum(0., 1. - (K.cast(iter, 'float32') - number_of_iters_until_decay_generator) / number_of_iters_after_decay_generator), 1)
-        lr_decay_schedule_discriminator = lambda iter: ktf.where(
+                                tf.maximum(0., 1. - (K.cast(iter, 'float32') - number_of_iters_until_decay_generator) / number_of_iters_after_decay_generator), 1)
+        lr_decay_schedule_discriminator = lambda iter: tf.where(
                                 K.greater(iter, K.cast(number_of_iters_until_decay_discriminator, 'int64')),
-                                ktf.maximum(0., 1. - (K.cast(iter, 'float32') - number_of_iters_until_decay_discriminator) / number_of_iters_after_decay_discriminator), 1)
+                                tf.maximum(0., 1. - (K.cast(iter, 'float32') - number_of_iters_until_decay_discriminator) / number_of_iters_after_decay_discriminator), 1)
     elif args.lr_decay_schedule.startswith("dropat"):
         drop_at = int(args.lr_decay_schedule.replace('dropat', ''))
         drop_at_generator = drop_at * 1000
         drop_at_discriminator = drop_at * 1000 * args.training_ratio
         print ("Drop at generator %s" % drop_at_generator)
-        lr_decay_schedule_generator = lambda iter: (ktf.where(K.less(iter, drop_at_generator), 1.,  0.1) *
+        lr_decay_schedule_generator = lambda iter: (tf.where(K.less(iter, drop_at_generator), 1.,  0.1) *
                                                      K.maximum(0., 1. - K.cast(iter, 'float32') / number_of_iters_generator))
-        lr_decay_schedule_discriminator = lambda iter: (ktf.where(K.less(iter, drop_at_discriminator), 1.,  0.1) *
+        lr_decay_schedule_discriminator = lambda iter: (tf.where(K.less(iter, drop_at_discriminator), 1.,  0.1) *
                                                         K.maximum(0., 1. - K.cast(iter, 'float32') / number_of_iters_discriminator))
     else:
         assert False

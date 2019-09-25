@@ -1,12 +1,12 @@
-import keras.backend as K
+import tensorflow.python.keras.backend as K
 from tqdm import tqdm
 import numpy as np
-from keras.backend import tf as ktf
+import tensorflow as tf
 
 assert K.image_data_format() == 'channels_last', "Backend should be tensorflow and data_format channel_last"
-config = ktf.ConfigProto()
+config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
-session = ktf.Session(config=config)
+session = tf.Session(config=config)
 K.set_session(session)
 
 def deprocess_image(img):

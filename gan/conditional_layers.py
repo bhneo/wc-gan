@@ -1,15 +1,14 @@
-from keras.engine import Layer, InputSpec
-from keras import initializers, regularizers, constraints
-from keras.backend.tensorflow_backend import _preprocess_padding
-from keras import backend as K
-from keras.backend import tf as ktf
-from keras.utils import conv_utils
-from keras import activations
-from keras.layers import BatchNormalization, Conv2D, UpSampling2D, Activation, Add, AveragePooling2D, Reshape, LeakyReLU
-from keras.legacy import interfaces
+from tensorflow.python.keras.engine import Layer, InputSpec
+from tensorflow.python.keras import initializers, regularizers, constraints
+from tensorflow.python.keras.backend import _preprocess_padding
+from tensorflow.python.keras import backend as K
+import tensorflow as tf
+from tensorflow.python.keras.utils import conv_utils
+from tensorflow.python.keras import activations
+from tensorflow.python.keras.layers import BatchNormalization, Conv2D, UpSampling2D, Activation, Add, AveragePooling2D, Reshape, LeakyReLU
 from layer_utils import he_init, glorot_init
-from keras.optimizers import Adam
-from keras.initializers import Identity
+from tensorflow.python.keras.optimizers import Adam
+from tensorflow.python.keras.initializers import Identity
 
 
 class ConditionalAdamOptimizer(Adam):
@@ -20,7 +19,7 @@ class ConditionalAdamOptimizer(Adam):
         if lr_decay_schedule.startswith('dropatc'):
             drop_at = int(lr_decay_schedule.replace('dropatc', ''))
             drop_at_generator = drop_at * 1000
-            self.lr_decay_schedule_generator = lambda iter: ktf.where(K.less(iter, drop_at_generator), 1.,  0.1)
+            self.lr_decay_schedule_generator = lambda iter: tf.where(K.less(iter, drop_at_generator), 1.,  0.1)
         else:
             self.lr_decay_schedule_generator = lambda iter: 1.
 
@@ -649,30 +648,29 @@ class DecorelationNormalization(Layer):
         _, w, h, c = K.int_shape(inputs)
         bs = K.shape(inputs)[0]
 
-        x_t = ktf.transpose(inputs, (3, 0, 1, 2))
+        x_t = tf.transpose(inputs, (3, 0, 1, 2))
 
         # BxCxHxW -> CxB*H*W
-        x_flat = ktf.reshape(x_t, (c, -1))
+        x_flat = tf.reshape(x_t, (c, -1))
 
         # Covariance
-        m = ktf.reduce_mean(x_flat, axis=1, keep_dims=True)
+        m = tf.reduce_mean(x_flat, axis=1, keep_dims=True)
         m = K.in_train_phase(m, self.moving_mean)
         f = x_flat - m
 
-
         if self.decomposition == 'cholesky':
             def get_inv_sqrt(ff):
-                sqrt = ktf.cholesky(ff)
-                inv_sqrt = ktf.matrix_triangular_solve(sqrt, ktf.eye(c))
+                sqrt = tf.cholesky(ff)
+                inv_sqrt = tf.matrix_triangular_solve(sqrt, tf.eye(c))
                 return sqrt, inv_sqrt
         elif self.decomposition == 'zca':
             def get_inv_sqrt(ff):
-                with ktf.device('/cpu:0'):
-                    S, U, _ = ktf.svd(ff + ktf.eye(c)*self.epsilon, full_matrices=True)
-                D = ktf.diag(ktf.pow(S, -0.5))
-                inv_sqrt = ktf.matmul(ktf.matmul(U, D), U, transpose_b=True)
-                D = ktf.diag(ktf.pow(S, 0.5))
-                sqrt =  ktf.matmul(ktf.matmul(U, D), U, transpose_b=True)
+                with tf.device('/cpu:0'):
+                    S, U, _ = tf.svd(ff + tf.eye(c)*self.epsilon, full_matrices=True)
+                D = tf.diag(tf.pow(S, -0.5))
+                inv_sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
+                D = tf.diag(tf.pow(S, 0.5))
+                sqrt =  tf.matmul(tf.matmul(U, D), U, transpose_b=True)
                 return sqrt, inv_sqrt
         else:
             assert False
@@ -680,7 +678,7 @@ class DecorelationNormalization(Layer):
 
 
         def train():
-            ff_apr = ktf.matmul(f, f, transpose_b=True) / (ktf.cast(bs*w*h, ktf.float32) - 1.)
+            ff_apr = tf.matmul(f, f, transpose_b=True) / (tf.cast(bs*w*h, tf.float32) - 1.)
             self.add_update([K.moving_average_update(self.moving_mean,
                                                      m,
                                                      self.momentum),
@@ -688,26 +686,26 @@ class DecorelationNormalization(Layer):
                                                      ff_apr,
                                                      self.momentum)],
                              inputs) 
-            ff_apr_shrinked = (1 - self.epsilon) * ff_apr + ktf.eye(c) * self.epsilon
+            ff_apr_shrinked = (1 - self.epsilon) * ff_apr + tf.eye(c) * self.epsilon
             
             if self.renorm:
                 l, l_inv = get_inv_sqrt(ff_apr_shrinked)
-                ff_mov =  (1 - self.epsilon) * self.moving_cov + ktf.eye(c) * self.epsilon
+                ff_mov =  (1 - self.epsilon) * self.moving_cov + tf.eye(c) * self.epsilon
                 _, l_mov_inverse = get_inv_sqrt(ff_mov)
                 l_ndiff = K.stop_gradient(l)
-                return ktf.matmul(ktf.matmul(l_mov_inverse, l_ndiff), l_inv)
+                return tf.matmul(tf.matmul(l_mov_inverse, l_ndiff), l_inv)
                
             return get_inv_sqrt(ff_apr_shrinked)[1]
 
         def test():
-            ff_mov = (1 - self.epsilon) * self.moving_cov + ktf.eye(c) * self.epsilon
+            ff_mov = (1 - self.epsilon) * self.moving_cov + tf.eye(c) * self.epsilon
             return get_inv_sqrt(ff_mov)[1]
         
         inv_sqrt = K.in_train_phase(train, test)
-        f_hat = ktf.matmul(inv_sqrt, f)
+        f_hat = tf.matmul(inv_sqrt, f)
 
         decorelated = K.reshape(f_hat, [c, bs, w, h])
-        decorelated = ktf.transpose(decorelated, [1, 2, 3, 0])
+        decorelated = tf.transpose(decorelated, [1, 2, 3, 0])
 
         return decorelated
 
@@ -723,23 +721,22 @@ class DecorelationNormalization(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-
 class ConditionalConv11(Layer):
     def __init__(self, filters,
-             number_of_classes,
-             strides=1,
-             data_format=None,
-             activation=None,
-             use_bias=True,
-             kernel_initializer='glorot_uniform',
-             bias_initializer='zeros',
-             kernel_regularizer=None,
-             bias_regularizer=None,
-             activity_regularizer=None,
-             kernel_constraint=None,
-             bias_constraint=None,
-             triangular=False,
-             **kwargs):
+                 number_of_classes,
+                 strides=1,
+                 data_format=None,
+                 activation=None,
+                 use_bias=True,
+                 kernel_initializer='glorot_uniform',
+                 bias_initializer='zeros',
+                 kernel_regularizer=None,
+                 bias_regularizer=None,
+                 activity_regularizer=None,
+                 kernel_constraint=None,
+                 bias_constraint=None,
+                 triangular=False,
+                 **kwargs):
         super(ConditionalConv11, self).__init__(**kwargs)
         self.filters = filters
         self.kernel_size = conv_utils.normalize_tuple((1, 1), 2, 'kernel_size')
@@ -758,7 +755,6 @@ class ConditionalConv11(Layer):
         self.kernel_constraint = constraints.get(kernel_constraint)
         self.bias_constraint = constraints.get(bias_constraint)
         self.triangular = triangular
-
 
     def build(self, input_shape):
         if self.data_format == 'channels_first':
@@ -795,52 +791,52 @@ class ConditionalConv11(Layer):
         ### Preprocess input
         #(bs, w, h, c)
         if self.data_format != 'channels_first':
-            x = ktf.transpose(x,  [0, 3, 1, 2])
+            x = tf.transpose(x,  [0, 3, 1, 2])
             _, in_c, w, h = K.int_shape(x)
         else:
             _, w, h, in_c = K.int_shape(x)
         #(bs, c, w, h)
-        x = ktf.reshape(x, (-1, in_c, w * h))
+        x = tf.reshape(x, (-1, in_c, w * h))
         #(bs, c, w*h)
-        x = ktf.transpose(x, [0, 2, 1])
+        x = tf.transpose(x, [0, 2, 1])
         #(bs, w*h, c)
 
         ### Preprocess filter
-        cls = ktf.squeeze(cls, axis=1)
+        cls = tf.squeeze(cls, axis=1)
         #(num_cls, 1, 1, in, out)
         if self.triangular:
-            kernel = ktf.matrix_band_part(self.kernel, 0, -1)
+            kernel = tf.matrix_band_part(self.kernel, 0, -1)
         else:
             kernel = self.kernel
-        kernel = ktf.gather(kernel, cls)
+        kernel = tf.gather(kernel, cls)
         #(bs, 1, 1, in, out)
 
-        kernel = ktf.squeeze(kernel, axis=1)
-        kernel = ktf.squeeze(kernel, axis=1)
+        kernel = tf.squeeze(kernel, axis=1)
+        kernel = tf.squeeze(kernel, axis=1)
         #print (K.int_shape(kernel))
         #(in, 1, bs, out)
         #print (K.int_shape(kernel))
 
-        output = ktf.matmul(x, kernel)
+        output = tf.matmul(x, kernel)
         #(bs, w*h, out)
 
         ### Deprocess output
-        output = ktf.transpose(output, [0, 2, 1])
+        output = tf.transpose(output, [0, 2, 1])
         # (bs, out, w * h)
-        output = ktf.reshape(output, (-1, self.filters, w, h))
+        output = tf.reshape(output, (-1, self.filters, w, h))
         # (bs, out, w, h)
         if self.bias is not None:
             #(num_cls, out)
-            bias = ktf.gather(self.bias, cls)
+            bias = tf.gather(self.bias, cls)
             #(bs, bias)
-            bias = ktf.expand_dims(bias, axis=-1)
-            bias = ktf.expand_dims(bias, axis=-1)
+            bias = tf.expand_dims(bias, axis=-1)
+            bias = tf.expand_dims(bias, axis=-1)
             #(bs, bias, 1, 1)
             output += bias
 
         if self.data_format != 'channels_first':
             #(bs, out, w, h)
-            output = ktf.transpose(output, [0, 2, 3, 1])
+            output = tf.transpose(output, [0, 2, 3, 1])
 
         if self.activation is not None:
             return self.activation(output)
@@ -976,57 +972,57 @@ class FactorizedConv11(Layer):
         ### Preprocess input
         #(bs, w, h, c)
         if self.data_format != 'channels_first':
-            x = ktf.transpose(x,  [0, 3, 1, 2])
+            x = tf.transpose(x,  [0, 3, 1, 2])
             _, in_c, w, h = K.int_shape(x)
         else:
             _, w, h, in_c = K.int_shape(x)
         #(bs, c, w, h)
-        x = ktf.reshape(x, (-1, in_c, w * h))
+        x = tf.reshape(x, (-1, in_c, w * h))
         #(bs, c, w*h)
-        x = ktf.transpose(x, [0, 2, 1])
+        x = tf.transpose(x, [0, 2, 1])
         #(bs, w*h, c)
 
         ### Preprocess filter
-        cls = ktf.squeeze(cls, axis=1)
+        cls = tf.squeeze(cls, axis=1)
         #(num_cls, 1, 1, in, out)
 
-        cls_emb = ktf.gather(self.class_matrix, cls)
+        cls_emb = tf.gather(self.class_matrix, cls)
         cls_emb = K.l2_normalize(cls_emb, axis=1)
         #(bs, filters_emb)
-        kernel = ktf.reshape(self.kernel, (self.filters_emb, -1))
+        kernel = tf.reshape(self.kernel, (self.filters_emb, -1))
         #(filters_emb, 1 * 1 * in * out)
-        kernel = ktf.matmul(cls_emb, kernel)
+        kernel = tf.matmul(cls_emb, kernel)
         #(bs, 1 * 1 * in * out)
 
-        kernel = ktf.reshape(kernel, (-1, 1, 1, in_c, self.filters))
+        kernel = tf.reshape(kernel, (-1, 1, 1, in_c, self.filters))
         #(bs, 1, 1, in, out)
 
-        kernel = ktf.squeeze(kernel, axis=1)
-        kernel = ktf.squeeze(kernel, axis=1)
+        kernel = tf.squeeze(kernel, axis=1)
+        kernel = tf.squeeze(kernel, axis=1)
         #print (K.int_shape(kernel))
         #(in, 1, bs, out)
         #print (K.int_shape(kernel))
 
-        output = ktf.matmul(x, kernel)
+        output = tf.matmul(x, kernel)
         #(bs, w*h, out)
 
         ### Deprocess output
-        output = ktf.transpose(output, [0, 2, 1])
+        output = tf.transpose(output, [0, 2, 1])
         # (bs, out, w * h)
-        output = ktf.reshape(output, (-1, self.filters, w, h))
+        output = tf.reshape(output, (-1, self.filters, w, h))
         # (bs, out, w, h)
         if self.bias is not None:
             #(num_cls, out)
-            bias = ktf.gather(self.bias, cls)
+            bias = tf.gather(self.bias, cls)
             #(bs, bias)
-            bias = ktf.expand_dims(bias, axis=-1)
-            bias = ktf.expand_dims(bias, axis=-1)
+            bias = tf.expand_dims(bias, axis=-1)
+            bias = tf.expand_dims(bias, axis=-1)
             #(bs, bias, 1, 1)
             output += bias
 
         if self.data_format != 'channels_first':
             #(bs, out, w, h)
-            output = ktf.transpose(output, [0, 2, 3, 1])
+            output = tf.transpose(output, [0, 2, 3, 1])
 
         if self.activation is not None:
             return self.activation(output)
@@ -1153,48 +1149,48 @@ class NINConv11(Layer):
         ### Preprocess input
         #(bs, w, h, c)
         if self.data_format != 'channels_first':
-            x = ktf.transpose(x,  [0, 3, 1, 2])
+            x = tf.transpose(x,  [0, 3, 1, 2])
             _, in_c, w, h = K.int_shape(x)
         else:
             _, w, h, in_c = K.int_shape(x)
         #(bs, c, w, h)
-        x = ktf.reshape(x, (-1, in_c, w * h))
+        x = tf.reshape(x, (-1, in_c, w * h))
         #(bs, c, w*h)
-        x = ktf.transpose(x, [0, 2, 1])
+        x = tf.transpose(x, [0, 2, 1])
         #(bs, w*h, c)
 
         ### Preprocess filter
         kernel = self.locnet(z)
 
         #(bs, 1 * 1 * in * out)
-        kernel = ktf.reshape(kernel, (-1, 1, 1, in_c, self.filters))
+        kernel = tf.reshape(kernel, (-1, 1, 1, in_c, self.filters))
         #(bs, 1, 1, in, out)
 
-        kernel = ktf.squeeze(kernel, axis=1)
-        kernel = ktf.squeeze(kernel, axis=1)
+        kernel = tf.squeeze(kernel, axis=1)
+        kernel = tf.squeeze(kernel, axis=1)
         #print (K.int_shape(kernel))
         #(in, 1, bs, out)
         #print (K.int_shape(kernel))
 
-        output = ktf.matmul(x, kernel)
+        output = tf.matmul(x, kernel)
         #(bs, w*h, out)
 
         ### Deprocess output
-        output = ktf.transpose(output, [0, 2, 1])
+        output = tf.transpose(output, [0, 2, 1])
         # (bs, out, w * h)
-        output = ktf.reshape(output, (-1, self.filters, w, h))
+        output = tf.reshape(output, (-1, self.filters, w, h))
         # (bs, out, w, h)
         if self.bias is not None:
             #(out, )
-            bias = ktf.expand_dims(self.bias, axis=0)
-            bias = ktf.expand_dims(bias, axis=-1)
-            bias = ktf.expand_dims(bias, axis=-1)
+            bias = tf.expand_dims(self.bias, axis=0)
+            bias = tf.expand_dims(bias, axis=-1)
+            bias = tf.expand_dims(bias, axis=-1)
             #(1, bias, 1, 1)
             output += bias
 
         if self.data_format != 'channels_first':
             #(bs, out, w, h)
-            output = ktf.transpose(output, [0, 2, 3, 1])
+            output = tf.transpose(output, [0, 2, 3, 1])
 
         if self.activation is not None:
             return self.activation(output)
@@ -1484,7 +1480,7 @@ class ConditionalDepthwiseConv2D(Layer):
         #Kernel preprocess
         kernel = K.gather(self.kernel, cls)
         #(bs, w, h, c)
-        kernel = ktf.transpose(kernel, [1, 2, 3, 0])
+        kernel = tf.transpose(kernel, [1, 2, 3, 0])
         #(w, h, c, bs)
         kernel = K.reshape(kernel, (self.kernel_size[0], self.kernel_size[1], -1))
         #(w, h, c * bs)
@@ -1492,10 +1488,10 @@ class ConditionalDepthwiseConv2D(Layer):
         #(w, h, c * bs, 1)
 
         if self.data_format == 'channles_first':
-            x = ktf.transpose(x, [0, 2, 3, 1])
+            x = tf.transpose(x, [0, 2, 3, 1])
         bs, w, h, c = K.int_shape(x)
         #(bs, w, h, c)
-        x = ktf.transpose(x, [1, 2, 3, 0])
+        x = tf.transpose(x, [1, 2, 3, 0])
         #(w, h, c, bs)
         x = K.reshape(x, (w, h, -1))
         #(w, h, c * bs)
@@ -1504,7 +1500,7 @@ class ConditionalDepthwiseConv2D(Layer):
 
         padding = _preprocess_padding(self.padding)
 
-        outputs = ktf.nn.depthwise_conv2d(x, kernel,
+        outputs = tf.nn.depthwise_conv2d(x, kernel,
                                          strides=strides,
                                          padding=padding,
                                          rate=self.dilation_rate)
@@ -1512,20 +1508,20 @@ class ConditionalDepthwiseConv2D(Layer):
         _, w, h, _ = K.int_shape(outputs)
         outputs = K.reshape(outputs, [w, h, self.filters, -1])
         #(w, h, c, bs)
-        outputs = ktf.transpose(outputs, [3, 0, 1, 2])
+        outputs = tf.transpose(outputs, [3, 0, 1, 2])
         #(bs, w, h, c)
 
         if self.bias is not None:
             #(num_cls, out)
-            bias = ktf.gather(self.bias, cls)
+            bias = tf.gather(self.bias, cls)
             #(bs, bias)
-            bias = ktf.expand_dims(bias, axis=1)
-            bias = ktf.expand_dims(bias, axis=1)
+            bias = tf.expand_dims(bias, axis=1)
+            bias = tf.expand_dims(bias, axis=1)
             #(bs, bias, 1, 1)
             outputs += bias
 
         if self.data_format == 'channles_first':
-            outputs = ktf.transpose(outputs, [0, 3, 1, 2])
+            outputs = tf.transpose(outputs, [0, 3, 1, 2])
 
         if self.activation is not None:
             return self.activation(outputs)
@@ -1619,7 +1615,7 @@ class ConditionalDense(Layer):
 
         x = K.expand_dims(inputs[0], axis=1)
         #(bs, 1, in)
-        output = ktf.matmul(x, kernel)
+        output = tf.matmul(x, kernel)
         #(bs, 1, out)
         output = K.squeeze(output, axis=1)
         #(bs, out)

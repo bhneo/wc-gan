@@ -1,14 +1,15 @@
-from keras.models import Input, Model
-from keras.layers import Dense, Reshape, Activation, Conv2D, Deconv2D
-from keras.layers import BatchNormalization, Add, Embedding, Concatenate
+from tensorflow.python.keras.models import Input, Model
+from tensorflow.python.keras.layers import Dense, Reshape, Activation, Conv2D, Conv2DTranspose
+from tensorflow.python.keras.layers import BatchNormalization, Add, Embedding, Concatenate
 
 import numpy as np
-import keras.backend as K
+import tensorflow.python.keras.backend as K
 
 from gan.layer_utils import glorot_init, resblock, dcblock
 from gan.conditional_layers import ConditionalConv11, DecorelationNormalization, ConditionalCenterScale, CenterScale, FactorizedConv11
 from gan.spectral_normalized_layers import SNConv2D, SNConditionalConv11, SNDense, SNEmbeding, SNFactorizedConv11
 from functools import partial
+
 
 def create_norm(norm, after_norm, cls=None, number_of_classes=None, filters_emb = 10,
                 uncoditional_conv_layer=Conv2D, conditional_conv_layer=ConditionalConv11,
@@ -148,7 +149,7 @@ def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=
             # TODO: SN DECONV
             y = dcblock(y, kernel_size=(4, 4), resample=resample,
                            nfilters=block_size, name='Generator.' + str(i),
-                           norm=block_norm_layer, is_first=False, conv_layer=Deconv2D)
+                           norm=block_norm_layer, is_first=False, conv_layer=Conv2DTranspose)
         i += 1
 
     y = last_norm_layer(axis=-1, name='Generator.BN.Final')(y)

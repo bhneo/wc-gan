@@ -1,15 +1,15 @@
-from keras.layers import Activation, Lambda
-from keras.layers.convolutional import Conv2D, UpSampling2D
-from keras.layers.normalization import BatchNormalization
-from keras.layers.merge import Add
-from keras.layers.pooling import AveragePooling2D
-from keras.backend import tf as ktf
-from keras.engine.topology import Layer
-from keras.models import Input, Model
-from keras.layers.pooling import _GlobalPooling2D
-from keras import backend as K
+from tensorflow.python.keras.layers import Activation, Lambda
+from tensorflow.python.keras.layers.convolutional import Conv2D, UpSampling2D
+from tensorflow.python.keras.layers.normalization import BatchNormalization
+from tensorflow.python.keras.layers.merge import Add
+from tensorflow.python.keras.layers.pooling import AveragePooling2D
+import tensorflow as tf
+from tensorflow.python.keras.layers import Layer
+from tensorflow.python.keras.models import Input, Model
+from tensorflow.python.keras.layers.pooling import GlobalPooling2D
+from tensorflow.python.keras import backend as K
 from functools import partial
-from keras.layers import LeakyReLU
+from tensorflow.python.keras.layers import LeakyReLU
 
 import numpy as np
 
@@ -17,20 +17,20 @@ def jacobian(y_flat, x):
     n = y_flat.shape[0]
 
     loop_vars = [
-        ktf.constant(0, ktf.int32),
-        ktf.TensorArray(ktf.float32, size=n),
+        tf.constant(0, tf.int32),
+        tf.TensorArray(tf.float32, size=n),
     ]
 
-    _, jacobian = ktf.while_loop(
+    _, jacobian = tf.while_loop(
         lambda j, _: j < n,
-        lambda j, result: (j+1, result.write(j, ktf.gradients(y_flat[j], x))),
+        lambda j, result: (j+1, result.write(j, tf.gradients(y_flat[j], x))),
         loop_vars)
 
     return jacobian.stack()
 
 
 def content_features_model(image_size, layer_name='block4_conv1'):
-    from keras.applications import vgg19
+    from tensorflow.python.keras.applications import vgg19
     x = Input(list(image_size) + [3])
     def preprocess_for_vgg(x):
         x = 255 * (x + 1) / 2
@@ -51,7 +51,7 @@ def content_features_model(image_size, layer_name='block4_conv1'):
     return Model(inputs=x, outputs=y)
 
 
-class GlobalSumPooling2D(_GlobalPooling2D):
+class GlobalSumPooling2D(GlobalPooling2D):
     """Global sum pooling operation for spatial data.
     # Arguments
         data_format: A string,
@@ -89,20 +89,20 @@ class GaussianFromPointsLayer(Layer):
         super(GaussianFromPointsLayer, self).__init__(**kwargs)
 
     def build(self, input_shape):
-        self.xx, self.yy = ktf.meshgrid(ktf.range(self.image_size[1]),
-                                        ktf.range(self.image_size[0]))
-        self.xx = ktf.expand_dims(ktf.cast(self.xx, 'float32'), 2)
-        self.yy = ktf.expand_dims(ktf.cast(self.yy, 'float32'), 2)
+        self.xx, self.yy = tf.meshgrid(tf.range(self.image_size[1]),
+                                        tf.range(self.image_size[0]))
+        self.xx = tf.expand_dims(tf.cast(self.xx, 'float32'), 2)
+        self.yy = tf.expand_dims(tf.cast(self.yy, 'float32'), 2)
 
     def call(self, x, mask=None):
         def batch_map(cords):
             y = ((cords[..., 0] + 1.0) / 2.0) * self.image_size[0]
             x = ((cords[..., 1] + 1.0) / 2.0) * self.image_size[1]
-            y = ktf.reshape(y, (1, 1, -1))
-            x = ktf.reshape(x, (1, 1, -1))
-            return ktf.exp(-((self.yy - y) ** 2 + (self.xx - x) ** 2) / (2 * self.sigma ** 2))
+            y = tf.reshape(y, (1, 1, -1))
+            x = tf.reshape(x, (1, 1, -1))
+            return tf.exp(-((self.yy - y) ** 2 + (self.xx - x) ** 2) / (2 * self.sigma ** 2))
 
-        x = ktf.map_fn(batch_map, x, dtype='float32')
+        x = tf.map_fn(batch_map, x, dtype='float32')
         print (x.shape)
         return x
 

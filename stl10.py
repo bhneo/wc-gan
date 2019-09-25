@@ -1,4 +1,4 @@
-from keras.utils.data_utils import get_file
+from tensorflow.python.keras.utils.data_utils import get_file
 import os
 import numpy as np
 from skimage.transform import resize
@@ -22,7 +22,7 @@ def load_data():
 
     X = np.fromfile(fpath, dtype=np.uint8)
 
-    print X.shape
+    print(X.shape)
     X = np.reshape(X, (-1, 3, 96, 96))
     X = np.transpose(X, (0, 3, 2, 1))
     X_train = np.empty((X.shape[0], 48, 48, 3), dtype='uint8')

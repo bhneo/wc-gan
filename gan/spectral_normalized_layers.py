@@ -1,10 +1,11 @@
-from keras.layers import Conv2D, Dense, Embedding
-import keras.initializers
-from keras import backend as K
-from keras.backend import tf as ktf
+from tensorflow.python.keras.layers import Conv2D, Dense, Embedding
+from tensorflow import keras
+import tensorflow.python.keras.initializers
+from tensorflow.python.keras import backend as K
+import tensorflow as tf
 from conditional_layers import ConditionalConv11, ConditionalDense, ConditionalDepthwiseConv2D, ConditionalConv2D, FactorizedConv11
 import numpy as np
-from keras.initializers import RandomNormal
+from tensorflow.python.keras.initializers import RandomNormal
 
 
 def max_singular_val(w, u, fully_differentiable=False, ip=1, transpose=lambda x: K.transpose(x)):
@@ -16,12 +17,12 @@ def max_singular_val(w, u, fully_differentiable=False, ip=1, transpose=lambda x:
 
     u_bar = u
     for _ in range(ip):
-        v_bar = ktf.matmul(transpose(w_), u_bar)
+        v_bar = tf.matmul(transpose(w_), u_bar)
         v_bar = K.l2_normalize(v_bar, axis=(-1, -2))
 
-        u_bar_raw = ktf.matmul(w_, v_bar)
+        u_bar_raw = tf.matmul(w_, v_bar)
         u_bar = K.l2_normalize(u_bar_raw, axis=(-1, -2))
-    sigma = ktf.matmul(transpose(u_bar), ktf.matmul(w, v_bar))
+    sigma = tf.matmul(transpose(u_bar), tf.matmul(w, v_bar))
 
     sigma = K.squeeze(sigma, axis=-1)
     sigma = K.squeeze(sigma, axis=-1)
@@ -211,7 +212,7 @@ class SNConditionalConv11(ConditionalConv11):
         kernel_shape = K.int_shape(self.kernel)
         if not self.renormalize:
             w = K.reshape(self.kernel, (kernel_shape[0], kernel_shape[1] * kernel_shape[2] * kernel_shape[3], kernel_shape[-1]))
-            sigma, u_bar = max_singular_val(w, self.u, transpose=lambda x: ktf.transpose(x, [0, 2, 1]),
+            sigma, u_bar = max_singular_val(w, self.u, transpose=lambda x: tf.transpose(x, [0, 2, 1]),
                                             fully_differentiable=self.fully_diff_spectral, ip=self.spectral_iterations)
             sigma = K.reshape(sigma, (self.number_of_classes, 1, 1, 1, 1))
         else:
@@ -263,7 +264,7 @@ class SNFactorizedConv11(FactorizedConv11):
         kernel_shape = K.int_shape(self.kernel)
         if not self.renormalize:
             w = K.reshape(self.kernel, (kernel_shape[0], kernel_shape[1] * kernel_shape[2] * kernel_shape[3], kernel_shape[-1]))
-            sigma, u_bar = max_singular_val(w, self.u, transpose=lambda x: ktf.transpose(x, [0, 2, 1]),
+            sigma, u_bar = max_singular_val(w, self.u, transpose=lambda x: tf.transpose(x, [0, 2, 1]),
                                             fully_differentiable=self.fully_diff_spectral, ip=self.spectral_iterations)
             sigma = K.reshape(sigma, (self.filters_emb, 1, 1, 1, 1))
         else:
@@ -315,7 +316,7 @@ class SNConditionalConv2D(ConditionalConv2D):
         kernel_shape = K.int_shape(self.kernel)
         if not self.renormalize:
             w = K.reshape(self.kernel, (kernel_shape[0], kernel_shape[1] * kernel_shape[2] * kernel_shape[3], kernel_shape[-1]))
-            sigma, u_bar = max_singular_val(w, self.u, transpose=lambda x: ktf.transpose(x, [0, 2, 1]),
+            sigma, u_bar = max_singular_val(w, self.u, transpose=lambda x: tf.transpose(x, [0, 2, 1]),
                                             fully_differentiable=self.fully_diff_spectral, ip=self.spectral_iterations)
             sigma = K.reshape(sigma, (self.number_of_classes, 1, 1, 1, 1))
         else:
@@ -370,10 +371,10 @@ class SNConditionalDepthwiseConv2D(ConditionalDepthwiseConv2D):
             sigma, u_bar = max_singular_val(w, self.u,
                                             fully_differentiable=self.fully_diff_spectral, ip=self.spectral_iterations)
         else:
-            w = ktf.transpose(self.kernel, (0, 3, 1, 2))
+            w = tf.transpose(self.kernel, (0, 3, 1, 2))
             w = K.reshape(w, [-1, kernel_shape[1] * kernel_shape[2]])
             w = K.expand_dims(w, axis=-1)
-            sigma, u_bar = max_singular_val(w, self.u, transpose=lambda x: ktf.transpose(x, [0, 2, 1]),
+            sigma, u_bar = max_singular_val(w, self.u, transpose=lambda x: tf.transpose(x, [0, 2, 1]),
                                             fully_differentiable=self.fully_diff_spectral, ip=self.spectral_iterations)
 
             sigma = K.reshape(sigma, [kernel_shape[0], 1, 1, kernel_shape[-1]])
@@ -427,7 +428,7 @@ class SNCondtionalDense(ConditionalDense):
             sigma, u_bar = max_singular_val(w, self.u,
                                             fully_differentiable=self.fully_diff_spectral, ip=self.spectral_iterations)
         else:
-            sigma, u_bar = max_singular_val(w, self.u, transpose=lambda x: ktf.transpose(x, [0, 2, 1]),
+            sigma, u_bar = max_singular_val(w, self.u, transpose=lambda x: tf.transpose(x, [0, 2, 1]),
                                             fully_differentiable=self.fully_diff_spectral, ip=self.spectral_iterations)
             sigma = K.reshape(sigma, (self.number_of_classes, 1, 1))
 
