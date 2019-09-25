@@ -1,5 +1,5 @@
 import numpy as np
-from gan_.dataset import LabeledArrayDataset
+from gan.dataset import LabeledArrayDataset
 from keras.preprocessing.image import ImageDataGenerator
 from sklearn.utils import shuffle
 from tqdm import trange
