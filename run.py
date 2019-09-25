@@ -319,7 +319,7 @@ def main():
                           supervised=args.gan_type is not None)
 
     args.output_dir = "output/%s_%s_%s" % (args.name, args.phase, time())
-    print args.output_dir
+    print(args.output_dir)
     args.checkpoints_dir = args.output_dir
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
