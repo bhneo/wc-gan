@@ -1,11 +1,11 @@
 from keras.optimizers import Adam
 
-from gan.dataset import LabeledArrayDataset
-from gan.cmd import parser_with_default_args
-from gan.train import Trainer
-from gan.ac_gan import AC_GAN
-from gan.projective_gan import ProjectiveGAN
-from gan.gan import GAN
+from gan_.dataset import LabeledArrayDataset
+from gan_.cmd import parser_with_default_args
+from gan_.train import Trainer
+from gan_.ac_gan import AC_GAN
+from gan_.projective_gan import ProjectiveGAN
+from gan_.gan import GAN
 
 import os
 import json

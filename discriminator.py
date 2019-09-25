@@ -2,10 +2,10 @@ from keras.models import Input, Model
 from keras.layers import Dense, Activation, Conv2D, GlobalAveragePooling2D, Lambda, Dropout, Flatten
 from keras.layers import Add, Embedding, LeakyReLU
 
-from gan.layer_utils import resblock, dcblock
-from gan.conditional_layers import ConditionalConv11
-from gan.spectral_normalized_layers import SNConv2D, SNDense, SNConditionalConv11, SNEmbeding
-from gan.layer_utils import glorot_init, GlobalSumPooling2D
+from gan_.layer_utils import resblock, dcblock
+from gan_.conditional_layers import ConditionalConv11
+from gan_.spectral_normalized_layers import SNConv2D, SNDense, SNConditionalConv11, SNEmbeding
+from gan_.layer_utils import glorot_init, GlobalSumPooling2D
 from functools import partial
 import keras.backend as K
 

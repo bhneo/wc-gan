@@ -5,11 +5,11 @@ from keras_contrib.layers.normalization import InstanceNormalization
 from keras.layers.advanced_activations import LeakyReLU
 import keras.backend as K
 
-from gan.dataset import UGANDataset
-from gan.cmd import parser_with_default_args
-from gan.train import Trainer
-from gan.ac_gan import AC_GAN
-from gan.conditional_layers import ConditionalInstanceNormalization
+from gan_.dataset import UGANDataset
+from gan_.cmd import parser_with_default_args
+from gan_.train import Trainer
+from gan_.ac_gan import AC_GAN
+from gan_.conditional_layers import ConditionalInstanceNormalization
 
 import numpy as np
 from skimage.transform import resize
