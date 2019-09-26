@@ -623,7 +623,7 @@ class DecorelationNormalization(Layer):
         self.decomposition = decomposition
 
     def build(self, input_shape):
-        dim = input_shape[self.axis]
+        dim = input_shape.as_list()[self.axis]
         if dim is None:
             raise ValueError('Axis ' + str(self.axis) + ' of '
                              'input tensor should have a defined dimension '
@@ -631,12 +631,12 @@ class DecorelationNormalization(Layer):
                              str(input_shape) + '.')
         shape = (dim, )
         self.moving_mean = self.add_weight(
-            (dim, 1),
+            shape=(dim, 1),
             name='moving_mean',
             initializer=self.moving_mean_initializer,
             trainable=False)
         self.moving_cov = self.add_weight(
-            (dim, dim),
+            shape=(dim, dim),
             name='moving_variance',
             initializer=self.moving_cov_initializer,
             trainable=False)

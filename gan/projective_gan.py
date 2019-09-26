@@ -1,5 +1,5 @@
 from gan.gan import GAN
-import tensorflow.python.keras.backend as K
+import tensorflow.keras.backend as K
 
 
 class ProjectiveGAN(GAN):

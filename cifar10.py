@@ -2,7 +2,8 @@ from tensorflow.python.keras.datasets.cifar import load_batch
 from tensorflow.python.keras.utils.data_utils import get_file
 import os
 import numpy as np
-import tensorflow.python.keras.backend as K
+import tensorflow.keras.backend as K
+
 
 def load_data():
     """Loads CIFAR10 dataset.

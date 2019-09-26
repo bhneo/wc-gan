@@ -1,9 +1,9 @@
 from tensorflow.python.keras.models import load_model
 import tensorflow as tf
 import numpy as np
-from tensorflow.python.keras.optimizers import Adam
-import tensorflow.python.keras.backend as K
-from tensorflow.python.keras.backend import function
+from tensorflow.keras.optimizers import Adam
+import tensorflow.keras.backend as K
+from tensorflow.keras.backend import function
 
 
 class GAN(object):

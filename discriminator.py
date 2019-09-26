@@ -7,7 +7,7 @@ from gan.conditional_layers import ConditionalConv11
 from gan.spectral_normalized_layers import SNConv2D, SNDense, SNConditionalConv11, SNEmbeding
 from gan.layer_utils import glorot_init, GlobalSumPooling2D
 from functools import partial
-import tensorflow.python.keras.backend as K
+import tensorflow.keras.backend as K
 
 from generator import create_norm
 

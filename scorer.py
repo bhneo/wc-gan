@@ -3,7 +3,7 @@ from gan.fid import calculate_fid_given_arrays
 from gan.dataset import UGANDataset
 import numpy as np
 from tqdm import tqdm
-import tensorflow.python.keras.backend as K
+import tensorflow.keras.backend as K
 from skimage.io import imsave
 import os
 import pickle
@@ -23,24 +23,24 @@ def draw_grid(fname, images, labels = None,  nrows = 10, ncols = 10):
 
 
 def save_images(dir_name, images, labels):
-     if not os.path.exists(dir_name):
-	 os.makedirs(dir_name)
-     #Load class metadata
-     f = open('synset_words.txt')
-     name_to_synset = {}
-     for line in f.readlines():
-         name, synset = line.split(' ', 1)
-         name_to_synset[name] = synset[:-1]
-     #print (name_to_synset)
-     with open('ti_classses.pkl') as f:
-         index_to_name = pickle.load(f)
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+    #Load class metadata
+    f = open('synset_words.txt')
+    name_to_synset = {}
+    for line in f.readlines():
+        name, synset = line.split(' ', 1)
+        name_to_synset[name] = synset[:-1]
+    #print (name_to_synset)
+    with open('ti_classses.pkl') as f:
+        index_to_name = pickle.load(f)
 
-     for i in np.unique(labels):
-         name = name_to_synset[index_to_name[int(i)]]
-         sample_images = images[labels == i][:16].astype('uint8')
-         sample_images = sample_images.astype('uint8')
-         image = UGANDataset(None, None).display(sample_images, None, 4, 4) 
-	 imsave(os.path.join(dir_name, name + '.jpg'), image)
+    for i in np.unique(labels):
+        name = name_to_synset[index_to_name[int(i)]]
+        sample_images = images[labels == i][:16].astype('uint8')
+        sample_images = sample_images.astype('uint8')
+        image = UGANDataset(None, None).display(sample_images, None, 4, 4)
+        imsave(os.path.join(dir_name, name + '.jpg'), image)
 
     
 
