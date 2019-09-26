@@ -654,7 +654,7 @@ class DecorelationNormalization(Layer):
         x_flat = tf.reshape(x_t, (c, -1))
 
         # Covariance
-        m = tf.reduce_mean(x_flat, axis=1, keep_dims=True)
+        m = tf.reduce_mean(x_flat, axis=1, keepdims=True)
         m = K.in_train_phase(m, self.moving_mean)
         f = x_flat - m
 

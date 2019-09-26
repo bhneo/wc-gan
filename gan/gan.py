@@ -2,7 +2,7 @@ from tensorflow.python.keras.models import load_model
 import tensorflow as tf
 import numpy as np
 from tensorflow.python.keras.optimizers import Adam
-import tensorflow.python.keras.backend as K
+from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.backend import function
 
 

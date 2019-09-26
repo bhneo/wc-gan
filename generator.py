@@ -3,7 +3,7 @@ from tensorflow.python.keras.layers import Dense, Reshape, Activation, Conv2D, C
 from tensorflow.python.keras.layers import BatchNormalization, Add, Embedding, Concatenate
 
 import numpy as np
-import tensorflow.python.keras.backend as K
+from tensorflow.python.keras import backend as K
 
 from gan.layer_utils import glorot_init, resblock, dcblock
 from gan.conditional_layers import ConditionalConv11, DecorelationNormalization, ConditionalCenterScale, CenterScale, FactorizedConv11

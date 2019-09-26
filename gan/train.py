@@ -3,12 +3,12 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import pylab as plt
-import tensorflow.python.keras.backend as K
+from tensorflow.python.keras import backend as K
 assert K.image_data_format() == 'channels_last', "Backend should be tensorflow and data_format channel_last"
 import tensorflow as tf
-config = tf.ConfigProto()
+config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
-session = tf.Session(config=config)
+session = tf.compat.v1.Session(config=config)
 K.set_session(session)
 from tqdm import tqdm
 
@@ -55,7 +55,7 @@ class Trainer(object):
         title = "epoch_{}.png".format(str(self.current_epoch).zfill(3))
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-        plt.imsave(os.path.join(self.output_dir, title), image,  cmap=plt.cm.gray)
+        plt.imsave(os.path.join(self.output_dir, title), image,  cmap=plt.gray)
 
     def make_checkpoint(self):
         g_title = "epoch_{}_generator.h5".format(str(self.current_epoch).zfill(3))
@@ -96,32 +96,29 @@ class Trainer(object):
                 loss = self.generator_train_op(generator_batch + [True])
                 generator_loss_list.append(loss)
 
-
     def train_one_epoch(self, validation_epoch=False):
         print("Epoch: %i" % self.current_epoch)
         discriminator_loss_list = []
         generator_loss_list = []
-
         
         for _ in tqdm(range(int(self.dataset.number_of_batches_per_epoch()))):
             try:
                 self.train_one_step(discriminator_loss_list, generator_loss_list)
             except tf.errors.InvalidArgumentError as err:
-                print (err)
+                print(err)
 
-       
         g_loss_str, d_loss_str = self.gan.get_losses_as_string(np.mean(np.array(generator_loss_list), axis = 0),
                                                                         np.mean(np.array(discriminator_loss_list), axis = 0))
-        print (g_loss_str)
-        print (d_loss_str)
+        print(g_loss_str)
+        print(d_loss_str)
         
         if hasattr(self.dataset, 'next_generator_sample_test') and validation_epoch:
             print ("Validation...")
             validation_loss_list = []
             for _ in tqdm(range(int(self.dataset.number_of_batches_per_validation()))):
-                    generator_batch = self.dataset.next_generator_sample_test()
-                    loss = self.validate_op(generator_batch + [True])
-                    validation_loss_list.append(loss)
+                generator_batch = self.dataset.next_generator_sample_test()
+                loss = self.validate_op(generator_batch + [True])
+                validation_loss_list.append(loss)
             val_loss_str, d_loss_str = self.gan.get_losses_as_string(np.mean(np.array(validation_loss_list), axis=0),
                                                                       np.mean(np.array(discriminator_loss_list), axis=0))
             print (val_loss_str.replace('Generator loss', 'Validation loss'))

@@ -1,3 +1,9 @@
+import os
+import sys
+
+sys.path.append(os.path.abspath('./gan'))
+
+
 from tensorflow.python.keras.optimizers import Adam
 
 from gan.dataset import LabeledArrayDataset
@@ -7,7 +13,6 @@ from gan.ac_gan import AC_GAN
 from gan.projective_gan import ProjectiveGAN
 from gan.gan import GAN
 
-import os
 import json
 from functools import partial
 from scorer import compute_scores
