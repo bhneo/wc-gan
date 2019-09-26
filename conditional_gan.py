@@ -1,7 +1,7 @@
 from tensorflow.python.keras.models import Model, Input
 from tensorflow.python.keras.layers import Dense, Flatten, Concatenate, Activation, Dropout
 from tensorflow.python.keras.layers.convolutional import Conv2D, Conv2DTranspose, ZeroPadding2D, Cropping2D
-from tensorflow.python.keras.keras_contrib.layers.normalization import InstanceNormalization
+from tensorflow.python.keras.layers.normalization import InstanceNormalization
 from tensorflow.python.keras.layers.advanced_activations import LeakyReLU
 import tensorflow.python.keras.backend as K
 
@@ -20,6 +20,7 @@ from itertools import chain
 from sklearn.utils import shuffle
 from scipy.ndimage.morphology import distance_transform_edt
 from skimage.color import gray2rgb
+
 
 def block(out, nkernels, down=True, bn=True, dropout=False, leaky=True, normalization=InstanceNormalization):
     if leaky:
@@ -186,8 +187,6 @@ class SketchDataset(UGANDataset):
 
         self.labels_train = np.array(self.labels_train)
         self.labels_test = np.array(self.labels_test)
-
-
 
     def _load_data_batch(self, index, stage='train'):
         load_from_folder = lambda names: [resize(imread(name), self.image_size, preserve_range=True)

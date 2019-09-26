@@ -660,22 +660,20 @@ class DecorelationNormalization(Layer):
 
         if self.decomposition == 'cholesky':
             def get_inv_sqrt(ff):
-                sqrt = tf.cholesky(ff)
-                inv_sqrt = tf.matrix_triangular_solve(sqrt, tf.eye(c))
+                sqrt = tf.linalg.cholesky(ff)
+                inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.eye(c))
                 return sqrt, inv_sqrt
         elif self.decomposition == 'zca':
             def get_inv_sqrt(ff):
                 with tf.device('/cpu:0'):
-                    S, U, _ = tf.svd(ff + tf.eye(c)*self.epsilon, full_matrices=True)
-                D = tf.diag(tf.pow(S, -0.5))
+                    S, U, _ = tf.linalg.svd(ff + tf.eye(c)*self.epsilon, full_matrices=True)
+                D = tf.linalg.diag(tf.pow(S, -0.5))
                 inv_sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
-                D = tf.diag(tf.pow(S, 0.5))
-                sqrt =  tf.matmul(tf.matmul(U, D), U, transpose_b=True)
+                D = tf.linalg.diag(tf.pow(S, 0.5))
+                sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
                 return sqrt, inv_sqrt
         else:
             assert False
- 
-
 
         def train():
             ff_apr = tf.matmul(f, f, transpose_b=True) / (tf.cast(bs*w*h, tf.float32) - 1.)
@@ -690,7 +688,7 @@ class DecorelationNormalization(Layer):
             
             if self.renorm:
                 l, l_inv = get_inv_sqrt(ff_apr_shrinked)
-                ff_mov =  (1 - self.epsilon) * self.moving_cov + tf.eye(c) * self.epsilon
+                ff_mov = (1 - self.epsilon) * self.moving_cov + tf.eye(c) * self.epsilon
                 _, l_mov_inverse = get_inv_sqrt(ff_mov)
                 l_ndiff = K.stop_gradient(l)
                 return tf.matmul(tf.matmul(l_mov_inverse, l_ndiff), l_inv)

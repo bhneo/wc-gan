@@ -9,14 +9,14 @@ import os
 import pickle
 
 
-def draw_grid(fname, images, labels = None,  nrows = 10, ncols = 10):
+def draw_grid(fname, images, labels=None,  nrows=10, ncols=10):
     if labels is None:
-       sample_images = images[:nrows * ncols]
+        sample_images = images[:nrows * ncols]
     else:
-       sample_images = []
-       for cls_index in range(ncols):
-           sample_images.append(images[labels == cls_index][:nrows])
-       sample_images = np.concatenate(sample_images, axis=0)
+        sample_images = []
+        for cls_index in range(ncols):
+            sample_images.append(images[labels == cls_index][:nrows])
+        sample_images = np.concatenate(sample_images, axis=0)
     sample_images = sample_images.astype('uint8')
     image = UGANDataset(None, None).display(sample_images, None, nrows, ncols)
     imsave(fname, image)
@@ -42,7 +42,6 @@ def save_images(dir_name, images, labels):
         image = UGANDataset(None, None).display(sample_images, None, 4, 4)
         imsave(os.path.join(dir_name, name + '.jpg'), image)
 
-    
 
 def compute_scores(epoch, image_shape, generator, dataset, images_inception=50000, images_fid=10000,
                    log_file=None, cache_file='mnist_fid.npz', additional_info=""):
@@ -68,8 +67,8 @@ def compute_scores(epoch, image_shape, generator, dataset, images_inception=5000
         n_images = end - begin
         g_s = dataset.next_generator_sample_test()
         if len(g_s) == 2:
-           labels[begin:end] = np.squeeze(g_s[1], axis=1)[:n_images]
-           conditional = True
+            labels[begin:end] = np.squeeze(g_s[1], axis=1)[:n_images]
+            conditional = True
         images[begin:end] = predict_fn(g_s + [False])[0][:n_images]
 
     images *= 127.5
@@ -87,16 +86,16 @@ def compute_scores(epoch, image_shape, generator, dataset, images_inception=5000
 
     if compute_inception:
         str = "INCEPTION SCORE: %s, %s" % get_inception_score(to_rgb(images[:images_inception]))
-        print (str)
+        print(str)
         if log_file is not None:
             with open(log_file, 'a') as f:
-                print >>f, ("Epoch %s " % (epoch, )) + str #+ " " + additional_info
+                print(("Epoch %s " % (epoch, )) + str, file=f) #+ " " + additional_info
 
     if compute_fid:
         true_images = 127.5 * dataset._X_test + 127.5
         str = "FID SCORE: %s" % calculate_fid_given_arrays([to_rgb(true_images)[:images_fid],
                                                             to_rgb(images)[:images_fid]], cache_file=cache_file)
-        print (str)
+        print(str)
         if log_file is not None:
             with open(log_file, 'a') as f:
-                print >>f, ("Epoch %s " % (epoch, )) + str #+ " " + additional_info
+                print(("Epoch %s " % (epoch, )) + str, file=f) #+ " " + additional_info

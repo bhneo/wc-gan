@@ -3,7 +3,7 @@ from tensorflow.python.keras.layers import Dense, Reshape, Activation, Conv2D, C
 from tensorflow.python.keras.layers import BatchNormalization, Add, Embedding, Concatenate
 
 import numpy as np
-import tensorflow.keras.backend as K
+import tensorflow.python.keras.backend as K
 
 from gan.layer_utils import glorot_init, resblock, dcblock
 from gan.conditional_layers import ConditionalConv11, DecorelationNormalization, ConditionalCenterScale, CenterScale, FactorizedConv11
@@ -22,13 +22,13 @@ def create_norm(norm, after_norm, cls=None, number_of_classes=None, filters_emb 
     elif norm == 'b':
         norm_layer = lambda axis, name: BatchNormalization(axis=axis, center=False, scale=False, name=name)
     elif norm == 'd':
-        norm_layer = lambda axis, name: DecorelationNormalization(name=name)#, decomposition='zca')
+        norm_layer = lambda axis, name: DecorelationNormalization(name=name)  # , decomposition='zca')
     elif norm == 'dr':
         norm_layer = lambda axis, name: DecorelationNormalization(name=name, renorm=True)
 
     if after_norm == 'ccs':
         after_norm_layer = lambda axis, name: lambda x: ConditionalCenterScale(number_of_classes=number_of_classes,
-                                                                     axis=axis, name=name)([x, cls])
+                                                                               axis=axis, name=name)([x, cls])
     elif after_norm == 'ucs':
         after_norm_layer = lambda axis, name: lambda x: CenterScale(axis=axis, name=name)(x)
     elif after_norm == 'uccs':
@@ -104,18 +104,18 @@ def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=
 
     if spectral:
         conv_layer = partial(SNConv2D, conv_singular=conv_singular,
-                              fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
+                             fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
         cond_conv_layer = partial(SNConditionalConv11,
-                              fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
-        dence_layer = partial(SNDense,
+                                  fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
+        dense_layer = partial(SNDense,
                               fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
         emb_layer = partial(SNEmbeding, fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
         factor_conv_layer = partial(SNFactorizedConv11,
-                              fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
+                                    fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
     else:
         conv_layer = Conv2D
         cond_conv_layer = ConditionalConv11
-        dence_layer = Dense
+        dense_layer = Dense
         emb_layer = Embedding
         factor_conv_layer = FactorizedConv11
 
@@ -126,36 +126,36 @@ def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=
     else:
         y = inp
 
-    y = dence_layer(units=np.prod(first_block_shape), kernel_initializer=glorot_init)(y)
+    y = dense_layer(units=np.prod(first_block_shape), kernel_initializer=glorot_init)(y)
     y = Reshape(first_block_shape)(y)
 
     block_norm_layer = create_norm(block_norm, block_after_norm, cls=cls,
-                             number_of_classes=number_of_classes, filters_emb=filters_emb,
-                             uncoditional_conv_layer=conv_layer, conditional_conv_layer=cond_conv_layer,
-                             factor_conv_layer=factor_conv_layer)
+                                   number_of_classes=number_of_classes, filters_emb=filters_emb,
+                                   uncoditional_conv_layer=conv_layer, conditional_conv_layer=cond_conv_layer,
+                                   factor_conv_layer=factor_conv_layer)
 
     last_norm_layer = create_norm(last_norm, last_after_norm, cls=cls,
-                             number_of_classes=number_of_classes, filters_emb=filters_emb,
-                             uncoditional_conv_layer=conv_layer, conditional_conv_layer=cond_conv_layer,
-                             factor_conv_layer=factor_conv_layer)
+                                  number_of_classes=number_of_classes, filters_emb=filters_emb,
+                                  uncoditional_conv_layer=conv_layer, conditional_conv_layer=cond_conv_layer,
+                                  factor_conv_layer=factor_conv_layer)
 
     i = 0
     for block_size, resample in zip(block_sizes, resamples):
         if arch == 'res':
             y = resblock(y, kernel_size=(3, 3), resample=resample,
-                            nfilters=block_size, name='Generator.' + str(i),
-                            norm=block_norm_layer, is_first=False, conv_layer=conv_layer)
+                         nfilters=block_size, name='Generator.' + str(i),
+                         norm=block_norm_layer, is_first=False, conv_layer=conv_layer)
         else:
             # TODO: SN DECONV
             y = dcblock(y, kernel_size=(4, 4), resample=resample,
-                           nfilters=block_size, name='Generator.' + str(i),
-                           norm=block_norm_layer, is_first=False, conv_layer=Conv2DTranspose)
+                        nfilters=block_size, name='Generator.' + str(i),
+                        norm=block_norm_layer, is_first=False, conv_layer=Conv2DTranspose)
         i += 1
 
     y = last_norm_layer(axis=-1, name='Generator.BN.Final')(y)
     y = Activation('relu')(y)
     output = conv_layer(filters=output_channels, kernel_size=(3, 3), name='Generator.Final',
-                            kernel_initializer=glorot_init, use_bias=True, padding='same')(y)
+                        kernel_initializer=glorot_init, use_bias=True, padding='same')(y)
     output = Activation('tanh')(output)
 
     if gan_type is None:

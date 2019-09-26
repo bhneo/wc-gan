@@ -86,12 +86,12 @@ def compile_and_run(dataset, args, generator_params, discriminator_params):
     hook = partial(at_store_checkpoint_hook, generator=generator)
 
     if args.phase == 'train':
-        GANS = {None:GAN, 'AC_GAN':AC_GAN, 'PROJECTIVE':ProjectiveGAN}
+        GANS = {None: GAN, 'AC_GAN': AC_GAN, 'PROJECTIVE': ProjectiveGAN}
         gan = GANS[args.gan_type](generator=generator, discriminator=discriminator,
-                                                lr_decay_schedule_discriminator = lr_decay_schedule_discriminator,
-                                                lr_decay_schedule_generator = lr_decay_schedule_generator,
-                                                **vars(args))
-        trainer = Trainer(dataset, gan, at_store_checkpoint_hook=hook,**vars(args))
+                                  lr_decay_schedule_discriminator=lr_decay_schedule_discriminator,
+                                  lr_decay_schedule_generator=lr_decay_schedule_generator,
+                                  **vars(args))
+        trainer = Trainer(dataset, gan, at_store_checkpoint_hook=hook, **vars(args))
         trainer.train()
     else:
         hook(0)
@@ -336,7 +336,7 @@ def main():
                         'tiny-imagenet': (64, 64, 3)}
 
     args.image_shape = image_shape_dict[args.dataset]
-    print ("Image shape %s x %s x %s" % args.image_shape)
+    print("Image shape %s x %s x %s" % args.image_shape)
     args.fid_cache_file = "output/%s_fid.npz" % args.dataset
 
     discriminator_params = get_discriminator_params(args)

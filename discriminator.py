@@ -37,7 +37,6 @@ def make_discriminator(input_image_shape, input_cls_shape=(1, ), block_sizes=(12
         dence_layer = Dense
         emb_layer = Embedding
 
-
     norm_layer = create_norm(norm=norm, after_norm=after_norm, cls=cls, number_of_classes=number_of_classes,
                              conditional_conv_layer=cond_conv_layer, uncoditional_conv_layer=conv_layer,
                              filters_emb=filters_emb)

@@ -1,9 +1,9 @@
 from tensorflow.python.keras.models import load_model
 import tensorflow as tf
 import numpy as np
-from tensorflow.keras.optimizers import Adam
-import tensorflow.keras.backend as K
-from tensorflow.keras.backend import function
+from tensorflow.python.keras.optimizers import Adam
+import tensorflow.python.keras.backend as K
+from tensorflow.python.keras.backend import function
 
 
 class GAN(object):
@@ -149,18 +149,18 @@ class GAN(object):
                 return tf.stop_gradient(K.std(val, keepdims=True))
 
         def point_for_gp_wgan():
-            weights = tf.random_uniform((batch_size, 1), minval=0, maxval=1)
+            weights = tf.random.uniform((batch_size, 1), minval=0, maxval=1)
             weights = [tf.reshape(weights, (-1, ) + (1, ) * (rank - 1)) for rank in ranks]
             weights = cast_all(weights, self.discriminator_input)
             points = [(w * r) + ((1 - w) * f) for r, f, w in zip(self.discriminator_input, self.generator_output, weights)]
             return points
 
         def points_for_dragan():
-            alphas = tf.random_uniform((batch_size, 1), minval=0, maxval=1)
+            alphas = tf.random.uniform((batch_size, 1), minval=0, maxval=1)
             alphas = [tf.reshape(alphas, (-1, ) + (1, ) * (rank - 1)) for rank in ranks]
             alphas = cast_all(alphas, self.discriminator_input)
-            fake = [tf.random_uniform(tf.shape(t), minval=0, maxval=1) * std_if_not_int(t) * 0.5
-                       for t in self.discriminator_input]
+            fake = [tf.random.uniform(tf.shape(t), minval=0, maxval=1) * std_if_not_int(t) * 0.5
+                    for t in self.discriminator_input]
             fake = cast_all(fake, self.discriminator_input)
 
             points = [(w * r) + ((1 - w) * f) for r, f, w in zip(self.discriminator_input, fake, alphas)]
@@ -191,7 +191,6 @@ class GAN(object):
         self.generator_output = self.generator(self.generator_input)
         self.discriminator_fake_output = self.discriminator(self.generator_output)
         self.discriminator_real_output = self.discriminator(self.discriminator_input)
-
 
     def intermediate_variables_to_lists(self):
         if type(self.generator_output) != list:
@@ -225,7 +224,7 @@ class GAN(object):
 
         updates += self.collect_updates(self.discriminator)
         updates += self.collect_updates(self.generator)
-        print (updates) 
+        print(updates)
         updates += self.generator_optimizer.get_updates(params=self.generator.trainable_weights, loss=sum(loss_list))
 
         lr_update = (self.lr_decay_schedule_generator(self.generator_optimizer.iterations) *
@@ -250,7 +249,6 @@ class GAN(object):
 
         print (updates)
         updates += self.discriminator_optimizer.get_updates(params=self.discriminator.trainable_weights, loss=sum(loss_list))
-              
 
         inputs = self.discriminator_input + self.additional_inputs_for_discriminator_train +\
                  self.generator_input + self.additional_inputs_for_generator_train

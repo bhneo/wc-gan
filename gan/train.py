@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import pylab as plt
-import tensorflow.keras.backend as K
+import tensorflow.python.keras.backend as K
 assert K.image_data_format() == 'channels_last', "Backend should be tensorflow and data_format channel_last"
 import tensorflow as tf
 config = tf.ConfigProto()
@@ -44,8 +44,6 @@ class Trainer(object):
         self.training_ratio = training_ratio
         self.display_ratio = display_ratio
         self.checkpoint_ratio = checkpoint_ratio
-
-
 
     def save_generated_images(self):
         if hasattr(self.dataset, 'next_generator_sample_test'):
