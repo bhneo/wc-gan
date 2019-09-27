@@ -25,9 +25,9 @@ def make_discriminator(input_image_shape, input_cls_shape=(1, ), block_sizes=(12
 
     if spectral:
         conv_layer = partial(SNConv2D, conv_singular=conv_singular,
-                              fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
+                             fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
         cond_conv_layer = partial(SNConditionalConv11,
-                              fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
+                                  fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
         dence_layer = partial(SNDense,
                               fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
         emb_layer = partial(SNEmbeding, fully_diff_spectral=fully_diff_spectral, spectral_iterations=spectral_iterations)
@@ -46,11 +46,11 @@ def make_discriminator(input_image_shape, input_cls_shape=(1, ), block_sizes=(12
     for block_size, resample in zip(block_sizes, resamples):
         if arch == 'res':
             y = resblock(y, kernel_size=(3, 3), resample=resample, nfilters=block_size,
-                              name='Discriminator.' + str(i), norm=norm_layer, is_first=(i == 0), conv_layer=conv_layer)
+                         name='Discriminator.' + str(i), norm=norm_layer, is_first=(i == 0), conv_layer=conv_layer)
             i += 1
         else:
             y = dcblock(y, kernel_size=(3, 3) if resample == "SAME" else (4, 4), resample=resample, nfilters=block_size,
-                              name='Discriminator.' + str(i), norm=norm_layer, is_first=(i == 0), conv_layer=conv_layer)
+                        name='Discriminator.' + str(i), norm=norm_layer, is_first=(i == 0), conv_layer=conv_layer)
             i += 1
 
     if arch == 'res':

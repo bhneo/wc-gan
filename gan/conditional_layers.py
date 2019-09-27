@@ -10,6 +10,7 @@ from tensorflow.python.keras.layers import BatchNormalization, Conv2D, UpSamplin
 from layer_utils import he_init, glorot_init
 from tensorflow.python.keras.optimizers import Adam
 from tensorflow.python.keras.utils import tf_utils
+from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import state_ops
@@ -651,6 +652,18 @@ class DecorelationNormalization(Layer):
                                           experimental_autocast=False)
         self.built = True
 
+    def _assign_moving_average(self, variable, value, momentum, inputs_size):
+        with K.name_scope('AssignMovingAvg') as scope:
+            with ops.colocate_with(variable):
+                decay = ops.convert_to_tensor(1.0 - momentum, name='decay')
+                if decay.dtype != variable.dtype.base_dtype:
+                    decay = math_ops.cast(decay, variable.dtype.base_dtype)
+                update_delta = (variable - math_ops.cast(value, variable.dtype)) * decay
+                if inputs_size is not None:
+                    update_delta = array_ops.where(inputs_size > 0, update_delta,
+                                                   K.zeros_like(update_delta))
+                return state_ops.assign_sub(variable, update_delta, name=scope)
+
     def call(self, inputs, training=None):
         _, w, h, c = K.int_shape(inputs)
         bs = K.shape(inputs)[0]
@@ -679,18 +692,28 @@ class DecorelationNormalization(Layer):
                 D = tf.linalg.diag(tf.pow(S, 0.5))
                 sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
                 return sqrt, inv_sqrt
+        elif self.decomposition == 'pca':
+            def get_inv_sqrt(ff):
+                with tf.device('/cpu:0'):
+                    S, U, _ = tf.linalg.svd(ff + tf.eye(c)*self.epsilon, full_matrices=True)
+                D = tf.linalg.diag(tf.pow(S, -0.5))
+                inv_sqrt = tf.matmul(D, U, transpose_b=True)
+                D = tf.linalg.diag(tf.pow(S, 0.5))
+                sqrt = tf.matmul(D, U, transpose_b=True)
+                return sqrt, inv_sqrt
         else:
             assert False
 
         def train():
             ff_apr = tf.matmul(f, f, transpose_b=True) / (tf.cast(bs*w*h, tf.float32) - 1.)
-            self.add_update([K.moving_average_update(self.moving_mean,
-                                                     m,
-                                                     self.momentum),
-                             K.moving_average_update(self.moving_cov,
-                                                     ff_apr,
-                                                     self.momentum)],
-                             inputs) 
+            # self.add_update([K.moving_average_update(self.moving_mean,
+            #                                          m,
+            #                                          self.momentum),
+            #                  K.moving_average_update(self.moving_cov,
+            #                                          ff_apr,
+            #                                          self.momentum)])
+            self.add_update([self._assign_moving_average(self.moving_mean, m, self.momentum, None),
+                             self._assign_moving_average(self.moving_cov, ff_apr, self.momentum, None)])
             ff_apr_shrinked = (1 - self.epsilon) * ff_apr + tf.eye(c) * self.epsilon
             
             if self.renorm:
@@ -1716,11 +1739,7 @@ def get_separable_conditional_conv(cls, number_of_classes, conv_layer=Conv2D,
 
 def test_dbn():
     data = tf.random.normal([128, 16, 16, 8])
-    out = DecorelationNormalization()(data)
+    K.set_learning_phase(1)
+    out = DecorelationNormalization(decomposition='zca')(data, training=True)
     print()
 
-
-if __name__ == '__main__':
-    data = tf.random.normal([128, 16, 16, 8])
-    out = DecorelationNormalization()(data)
-    print()

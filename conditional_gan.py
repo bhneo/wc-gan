@@ -6,7 +6,7 @@ from tensorflow.python.keras.layers.advanced_activations import LeakyReLU
 import tensorflow.python.keras.backend as K
 
 from gan.dataset import UGANDataset
-from gan.cmd import parser_with_default_args
+from gan.args import parser_with_default_args
 from gan.train import Trainer
 from gan.ac_gan import AC_GAN
 from gan.conditional_layers import ConditionalInstanceNormalization
@@ -278,6 +278,7 @@ def main():
     trainer = Trainer(dataset, gan, **vars(args))
 
     trainer.train()
+
 
 if __name__ == "__main__":
     main()

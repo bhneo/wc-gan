@@ -6,19 +6,28 @@ import pylab as plt
 from tensorflow.python.keras import backend as K
 assert K.image_data_format() == 'channels_last', "Backend should be tensorflow and data_format channel_last"
 import tensorflow as tf
-config = tf.compat.v1.ConfigProto()
-config.gpu_options.allow_growth = True
-session = tf.compat.v1.Session(config=config)
-K.set_session(session)
 from tqdm import tqdm
 
 
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        # Currently, memory growth needs to be the same across GPUs
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+    except RuntimeError as e:
+        # Memory growth must be set before GPUs have been initialized
+        print(e)
+
+
 class Trainer(object):
-    def __init__(self, dataset, gan, output_dir = 'output/generated_samples',
+    def __init__(self, dataset, gan, output_dir='output/generated_samples',
                  checkpoints_dir='output/checkpoints', training_ratio=5,
                  display_ratio=1, checkpoint_ratio=10, start_epoch=0,
                  number_of_epochs=100, batch_size=64, generator_batch_multiple=2,
-                 at_store_checkpoint_hook = None, save_weights_only=True,
+                 at_store_checkpoint_hook=None, save_weights_only=True,
                  concatenate_generator_batches=True, **kwargs):
         self.dataset = dataset
         self.current_epoch = start_epoch
@@ -72,12 +81,13 @@ class Trainer(object):
  
         if self.at_store_checkpoint_hook is not None:
             self.at_store_checkpoint_hook(self.current_epoch)
-   
+
+    @tf.function
     def train_one_step(self, discriminator_loss_list, generator_loss_list):
         for j in range(self.training_ratio):
-            discrimiantor_batch = self.dataset.next_discriminator_sample()
+            discriminator_batch = self.dataset.next_discriminator_sample()
             generator_batch = self.dataset.next_generator_sample()
-            loss = self.discriminator_train_op(discrimiantor_batch + generator_batch + [True])
+            loss = self.discriminator_train_op(discriminator_batch + generator_batch + [True])
             discriminator_loss_list.append(loss)
 
         if self.concatenate_generator_batches:
@@ -107,13 +117,13 @@ class Trainer(object):
             except tf.errors.InvalidArgumentError as err:
                 print(err)
 
-        g_loss_str, d_loss_str = self.gan.get_losses_as_string(np.mean(np.array(generator_loss_list), axis = 0),
-                                                                        np.mean(np.array(discriminator_loss_list), axis = 0))
+        g_loss_str, d_loss_str = self.gan.get_losses_as_string(np.mean(np.array(generator_loss_list), axis=0),
+                                                               np.mean(np.array(discriminator_loss_list), axis=0))
         print(g_loss_str)
         print(d_loss_str)
         
         if hasattr(self.dataset, 'next_generator_sample_test') and validation_epoch:
-            print ("Validation...")
+            print("Validation...")
             validation_loss_list = []
             for _ in tqdm(range(int(self.dataset.number_of_batches_per_validation()))):
                 generator_batch = self.dataset.next_generator_sample_test()
@@ -121,7 +131,7 @@ class Trainer(object):
                 validation_loss_list.append(loss)
             val_loss_str, d_loss_str = self.gan.get_losses_as_string(np.mean(np.array(validation_loss_list), axis=0),
                                                                       np.mean(np.array(discriminator_loss_list), axis=0))
-            print (val_loss_str.replace('Generator loss', 'Validation loss'))
+            print(val_loss_str.replace('Generator loss', 'Validation loss'))
 
         print("Discriminator lr %s" % K.get_value(self.gan.discriminator_optimizer.lr))
         print("Generator lr %s" % K.get_value(self.gan.generator_optimizer.lr))
@@ -136,5 +146,5 @@ class Trainer(object):
                 self.make_checkpoint()
 
         if (self.current_epoch + 1) % self.display_ratio == 0:
-                self.save_generated_images()
+            self.save_generated_images()
         self.make_checkpoint()

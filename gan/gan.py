@@ -51,13 +51,11 @@ class GAN(object):
         else:
             self.discriminator_input = [discriminator_input]
 
-        self.generator_adversarial_objective = generator_adversarial_objective
-        self.discriminator_adversarial_objective = discriminator_adversarial_objective
+        self.generator_adversarial_loss_func = self.get_generator_adversarial_loss(generator_adversarial_objective)
+        self.discriminator_adversarial_loss_func = self.get_discriminator_adversarial_loss(discriminator_adversarial_objective)
 
-        self.compile_intermediate_variables()
-        self.intermediate_variables_to_lists()
-        self.additional_inputs_for_generator_train=additional_inputs_for_generator_train
-        self.additional_inputs_for_discriminator_train=additional_inputs_for_discriminator_train
+        self.additional_inputs_for_generator_train = additional_inputs_for_generator_train
+        self.additional_inputs_for_discriminator_train = additional_inputs_for_discriminator_train
         self.gradient_penalty_weight = gradient_penalty_weight
         self.gradient_penalty_type = gradient_penalty_type
 
@@ -68,66 +66,64 @@ class GAN(object):
         self.discriminator_metric_names = []
 
     def get_generator_adversarial_loss(self, loss_type):
-        def ns_loss(logits):
-            labels = tf.ones_like(logits)
-            return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits))
-
-        def ls_loss(logits):
-            return tf.reduce_mean((logits - 1) ** 2)
-
-        def wgan(logits):
-            return -tf.reduce_mean(logits)
-
-        def hinge(logits):
-            return -tf.reduce_mean(logits)
-
-        losses = {'ns-gan': ns_loss(self.discriminator_fake_output[0]),
-                  'lsgan': ls_loss(self.discriminator_fake_output[0]),
-                  'wgan': wgan(self.discriminator_fake_output[0]),
-                  'hinge': hinge(self.discriminator_fake_output[0])}
         self.generator_metric_names.append('fake')
-        return losses[loss_type]
+        if loss_type == 'ns-gan':
+            def ns_loss(logits):
+                labels = tf.ones_like(logits)
+                return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits))
+            return ns_loss
+        if loss_type == 'lsgan':
+            def ls_loss(logits):
+                return tf.reduce_mean((logits - 1) ** 2)
+            return ls_loss
+        if loss_type == 'wgan':
+            def wgan(logits):
+                return -tf.reduce_mean(logits)
+            return wgan
+        if loss_type == 'hinge':
+            def hinge(logits):
+                return -tf.reduce_mean(logits)
+            return hinge
+        else:
+            return None
 
     def get_discriminator_adversarial_loss(self, loss_type):
-        def ns_loss_true(logits):
-            labels = tf.ones_like(logits)
-            return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits))
-
-        def ns_loss_fake(logits):
-            labels = tf.zeros_like(logits)
-            return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits))
-
-        def ls_loss_true(logits):
-            return tf.reduce_mean((logits - 1) ** 2)
-
-        def ls_loss_fake(logits):
-            return tf.reduce_mean(logits ** 2)
-
-        def wgan_loss_true(logits):
-            return -tf.reduce_mean(logits)
-
-        def wgan_loss_fake(logits):
-            return tf.reduce_mean(logits)
-
-        def hinge_loss_true(logits):
-            return tf.reduce_mean(tf.maximum(0.0, 1.0 - logits))
-
-        def hinge_loss_fake(logits):
-            return tf.reduce_mean(tf.maximum(0.0, 1.0 + logits))
-
-        losses = {'ns-gan': [ns_loss_true(self.discriminator_real_output[0]),
-                             ns_loss_fake(self.discriminator_fake_output[0])],
-                  'lsgan': [ls_loss_true(self.discriminator_real_output[0]),
-                             ls_loss_fake(self.discriminator_fake_output[0])],
-                  'wgan': [wgan_loss_true(self.discriminator_real_output[0]),
-                             wgan_loss_fake(self.discriminator_fake_output[0])],
-                  'hinge': [hinge_loss_true(self.discriminator_real_output[0]),
-                             hinge_loss_fake(self.discriminator_fake_output[0])]}
-
         self.discriminator_metric_names.append('true')
         self.discriminator_metric_names.append('fake')
-        return losses[loss_type]
+        if loss_type == 'ns-gan':
+            def ns_loss_true(logits):
+                labels = tf.ones_like(logits)
+                return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits))
 
+            def ns_loss_fake(logits):
+                labels = tf.zeros_like(logits)
+                return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=logits))
+            return [ns_loss_true, ns_loss_fake]
+        if loss_type == 'lsgan':
+            def ls_loss_true(logits):
+                return tf.reduce_mean((logits - 1) ** 2)
+
+            def ls_loss_fake(logits):
+                return tf.reduce_mean(logits ** 2)
+            return [ls_loss_true, ls_loss_fake]
+        if loss_type == 'wgan':
+            def wgan_loss_true(logits):
+                return -tf.reduce_mean(logits)
+
+            def wgan_loss_fake(logits):
+                return tf.reduce_mean(logits)
+            return [wgan_loss_true, wgan_loss_fake]
+        if loss_type == 'hinge':
+            def hinge_loss_true(logits):
+                return tf.reduce_mean(tf.maximum(0.0, 1.0 - logits))
+
+            def hinge_loss_fake(logits):
+                return tf.reduce_mean(tf.maximum(0.0, 1.0 + logits))
+            return [hinge_loss_true, hinge_loss_fake]
+        else:
+            return None
+
+    @tf.function
     def get_gradient_penalty_loss(self):
         if self.gradient_penalty_weight == 0:
             return []
@@ -170,10 +166,11 @@ class GAN(object):
         points = points[self.gradient_penalty_type]
 
         gp_list = []
-        disc_out = self.discriminator(points)
+        with tf.GradientTape() as tape:
+            disc_out = self.discriminator(points)
         if type(disc_out) != list:
             disc_out = [disc_out]
-        gradients = tf.gradients(disc_out[0], points)
+        gradients = tape.gradient(disc_out[0], points)
 
         for gradient in gradients:
             if gradient is None:
@@ -187,18 +184,18 @@ class GAN(object):
             self.discriminator_metric_names.append('gp_loss_' + str(i))
         return gp_list
 
-    def compile_intermediate_variables(self):
-        self.generator_output = self.generator(self.generator_input)
-        self.discriminator_fake_output = self.discriminator(self.generator_output)
-        self.discriminator_real_output = self.discriminator(self.discriminator_input)
+    # def compile_intermediate_variables(self):
+    #     self.generator_output = self.generator(self.generator_input)
+    #     self.discriminator_fake_output = self.discriminator(self.generator_output)
+    #     self.discriminator_real_output = self.discriminator(self.discriminator_input)
 
-    def intermediate_variables_to_lists(self):
-        if type(self.generator_output) != list:
-            self.generator_output = [self.generator_output]
-        if type(self.discriminator_fake_output) != list:
-            self.discriminator_fake_output = [self.discriminator_fake_output]
-        if type(self.discriminator_real_output) != list:
-            self.discriminator_real_output = [self.discriminator_real_output]
+    # def intermediate_variables_to_lists(self):
+    #     if type(self.generator_output) != list:
+    #         self.generator_output = [self.generator_output]
+    #     if type(self.discriminator_fake_output) != list:
+    #         self.discriminator_fake_output = [self.discriminator_fake_output]
+    #     if type(self.discriminator_real_output) != list:
+    #         self.discriminator_real_output = [self.discriminator_real_output]
 
     def additional_generator_losses(self):
         return []
@@ -213,29 +210,39 @@ class GAN(object):
         return updates
 
     def compile_generator_train_op(self):
-        loss_list = []
-        adversarial_loss = self.get_generator_adversarial_loss(self.generator_adversarial_objective)
-        loss_list.append(adversarial_loss)
+        @tf.function
+        def generator_train_op(input_list): # generator_input + additional_inputs_for_generator_train + train/test]
+            loss_list = []
+            with tf.GradientTape() as tape:
+                discriminator_fake_output = self.generator(input_list)
+                if type(discriminator_fake_output) == list:
+                    discriminator_fake_output = discriminator_fake_output[0]
+                adversarial_loss = self.generator_adversarial_loss_func(discriminator_fake_output)
+                loss_list.append(adversarial_loss)
+                loss_list += self.additional_generator_losses()
+            gradients = tape.gradient(loss_list, self.generator.trainable_weights)
+            self.generator_optimizer.apply_gradients(zip(gradients, self.generator.trainable_weights))
 
-        loss_list += self.additional_generator_losses()
-        self.generator_loss_list = loss_list
+            self.generator_loss_list = loss_list
 
-        updates = []
 
-        updates += self.collect_updates(self.discriminator)
-        updates += self.collect_updates(self.generator)
-        print(updates)
-        updates += self.generator_optimizer.get_updates(params=self.generator.trainable_weights, loss=sum(loss_list))
-
-        lr_update = (self.lr_decay_schedule_generator(self.generator_optimizer.iterations) *
-                                K.get_value(self.generator_optimizer.lr))
-        updates.append(K.update(self.generator_optimizer.lr, lr_update))
-
-        train_op = function(self.generator_input + self.additional_inputs_for_generator_train + [K.learning_phase()],
-                            [sum(loss_list)] + loss_list, updates=updates)
-        return train_op
+            lr_update = (self.lr_decay_schedule_generator(self.generator_optimizer.iterations) *
+                                    K.get_value(self.generator_optimizer.lr))
+            updates.append(K.update(self.generator_optimizer.lr, lr_update))
+            return [sum(loss_list)] + loss_list
+        return generator_train_op
 
     def compile_discriminator_train_op(self):
+        @tf.function
+        def discriminator_train_op():
+            losses = {'ns-gan': [ns_loss_true(self.discriminator_real_output[0]),
+                                 ns_loss_fake(self.discriminator_fake_output[0])],
+                      'lsgan': [ls_loss_true(self.discriminator_real_output[0]),
+                                ls_loss_fake(self.discriminator_fake_output[0])],
+                      'wgan': [wgan_loss_true(self.discriminator_real_output[0]),
+                               wgan_loss_fake(self.discriminator_fake_output[0])],
+                      'hinge': [hinge_loss_true(self.discriminator_real_output[0]),
+                                hinge_loss_fake(self.discriminator_fake_output[0])]}
         loss_list = []
         adversarial_loss = self.get_discriminator_adversarial_loss(self.generator_adversarial_objective)
         loss_list += adversarial_loss
@@ -247,7 +254,7 @@ class GAN(object):
         updates += self.collect_updates(self.discriminator)
         updates += self.collect_updates(self.generator)
 
-        print (updates)
+        print(updates)
         updates += self.discriminator_optimizer.get_updates(params=self.discriminator.trainable_weights, loss=sum(loss_list))
 
         inputs = self.discriminator_input + self.additional_inputs_for_discriminator_train +\
