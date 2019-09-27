@@ -28,3 +28,7 @@ def parser_with_default_args():
     parser.add_argument("--start_epoch", default=0, type=int, help='Start epoch for starting from checkpoint')
 
     return parser
+
+
+if __name__ == '__main__':
+    print()

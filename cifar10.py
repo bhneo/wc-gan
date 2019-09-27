@@ -2,7 +2,7 @@ from tensorflow.python.keras.datasets.cifar import load_batch
 from tensorflow.python.keras.utils.data_utils import get_file
 import os
 import numpy as np
-import tensorflow.keras.backend as K
+from tensorflow.python.keras import backend as K
 
 
 def load_data():
@@ -35,3 +35,7 @@ def load_data():
         x_test = x_test.transpose(0, 2, 3, 1)
 
     return (x_train, y_train), (x_test, y_test)
+
+
+if __name__ == '__main__':
+    print()
