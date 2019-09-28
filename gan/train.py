@@ -64,7 +64,7 @@ class Trainer(object):
         title = "epoch_{}.png".format(str(self.current_epoch).zfill(3))
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-        plt.imsave(os.path.join(self.output_dir, title), image,  cmap=plt.gray)
+        plt.imsave(os.path.join(self.output_dir, title), image,  cmap='gray')
 
     def make_checkpoint(self):
         g_title = "epoch_{}_generator.h5".format(str(self.current_epoch).zfill(3))
@@ -82,12 +82,11 @@ class Trainer(object):
         if self.at_store_checkpoint_hook is not None:
             self.at_store_checkpoint_hook(self.current_epoch)
 
-    @tf.function
     def train_one_step(self, discriminator_loss_list, generator_loss_list):
         for j in range(self.training_ratio):
             discriminator_batch = self.dataset.next_discriminator_sample()
             generator_batch = self.dataset.next_generator_sample()
-            loss = self.discriminator_train_op(discriminator_batch + generator_batch + [True])
+            loss = self.discriminator_train_op(discriminator_batch, generator_batch)
             discriminator_loss_list.append(loss)
 
         if self.concatenate_generator_batches:
@@ -98,12 +97,12 @@ class Trainer(object):
                 generator_batch = [np.concatenate(l, axis=0) for l in zip(*generator_batch)]
             else:
                 generator_batch = self.dataset.next_generator_sample()
-            loss = self.generator_train_op(generator_batch + [True])
+            loss = self.generator_train_op(generator_batch)
             generator_loss_list.append(loss)
         else:
             for j in range(self.gen_batch_mul):
                 generator_batch = self.dataset.next_generator_sample()
-                loss = self.generator_train_op(generator_batch + [True])
+                loss = self.generator_train_op(generator_batch)
                 generator_loss_list.append(loss)
 
     def train_one_epoch(self, validation_epoch=False):

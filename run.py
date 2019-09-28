@@ -4,7 +4,7 @@ import sys
 sys.path.append(os.path.abspath('./gan'))
 
 
-from tensorflow.python.keras.optimizers import Adam
+from tensorflow.python.keras.optimizer_v2.adam import Adam
 from gan.dataset import LabeledArrayDataset
 from gan.args import parser_with_default_args
 from gan.train import Trainer
@@ -270,7 +270,7 @@ def main():
 
     parser.add_argument("--beta1", default=0, type=float, help='Adam parameter')
     parser.add_argument("--beta2", default=0.9, type=float, help='Adam parameter')
-    parser.add_argument("--lr_decay_schedule", default=None,
+    parser.add_argument("--lr_decay_schedule", default='linear',
                         help='Learnign rate decay schedule:'
                              'None - no decay.'
                              'linear - linear decay to zero.'
@@ -279,7 +279,7 @@ def main():
                              'dropat30 - drop lr 10 times at 30 epoch (any number insdead of 30 allowed).')
 
     parser.add_argument("--generator_spectral", default=0, type=int, help='Use spectral norm in generator.')
-    parser.add_argument("--discriminator_spectral", default=0, type=int, help='Use spectral norm in discriminator.')
+    parser.add_argument("--discriminator_spectral", default=1, type=int, help='Use spectral norm in discriminator.')
  
     parser.add_argument("--fully_diff_spectral", default=0, type=int, help='Fully difirentiable spectral normalization.')
     parser.add_argument("--spectral_iterations", default=1, type=int, help='Number of iteration per spectral update.')
@@ -290,18 +290,18 @@ def main():
 
     parser.add_argument("--filters_emb", default=10, type=int, help='Number of inner filters in factorized conv.')
 
-    parser.add_argument("--generator_block_norm", default='b', choices=['n', 'b', 'd', 'dr'],
+    parser.add_argument("--generator_block_norm", default='d', choices=['n', 'b', 'd', 'dr'],
                         help='Normalization in generator block. b - batch, d - whitening, n - none, '
                              'dr - whitening with renornaliazation.')
-    parser.add_argument("--generator_block_after_norm", default='ucs',
+    parser.add_argument("--generator_block_after_norm", default='uconv',
                         choices=['ccs', 'fconv', 'ucs', 'uccs', 'ufconv', 'cconv', 'uconv', 'ucconv','ccsuconv', 'n'],
                         help="Layer after block normalization. ccs - conditional shift and scale."
                              "ucs - uncoditional shift and scale. ucconv - condcoloring. ufconv - condcoloring + sa."
                              "n - None.")
-    parser.add_argument("--generator_last_norm", default='b', choices=['n', 'b', 'd', 'dr'],
+    parser.add_argument("--generator_last_norm", default='d', choices=['n', 'b', 'd', 'dr'],
                         help='Normalization in generator block. b - batch, d - whitening, n - none, '
                              'dr - whitening with renornaliazation.')
-    parser.add_argument("--generator_last_after_norm", default='ucs',
+    parser.add_argument("--generator_last_after_norm", default='uconv',
                         choices=['ccs', 'ucs', 'uccs', 'ufconv', 'cconv', 'uconv', 'ucconv', 'ccsuconv', 'n'],
                         help="Layer after block normalization. ccs - conditional shift and scale."
                              "ucs - uncoditional shift and scale. ucconv - condcoloring. ufconv - condcoloring + sa."
@@ -309,7 +309,7 @@ def main():
     parser.add_argument("--generator_batch_multiple", default=2, type=int,
                         help="Size of the generator batch, multiple of batch_size.")
     parser.add_argument("--generator_concat_cls", default=0, type=int, help='Concat labels to noise in generator.')
-    parser.add_argument("--generator_filters", default=128, type=int, help='Base number of filters in generator block.')
+    parser.add_argument("--generator_filters", default=256, type=int, help='Base number of filters in generator block.')
 
     parser.add_argument("--discriminator_norm", default='n', choices=['n', 'b', 'd', 'dr'],
                         help='Normalization in disciminator block. b - batch, d - whitening, n - none, '

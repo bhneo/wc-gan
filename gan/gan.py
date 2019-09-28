@@ -1,26 +1,23 @@
-from tensorflow.python.keras.models import load_model
-import tensorflow as tf
 import numpy as np
-from tensorflow.python.keras.optimizers import Adam
+import tensorflow as tf
 from tensorflow.python.keras import backend as K
-from tensorflow.python.keras.backend import function
+from tensorflow.python.keras.models import load_model
 
 
 class GAN(object):
     def __init__(self, generator, discriminator,
-                 generator_optimizer=Adam(2e-4, beta_1=0, beta_2=0.9),
-                 discriminator_optimizer=Adam(2e-4, beta_1=0, beta_2=0.9),
+                 generator_optimizer=tf.keras.optimizers.Adam(2e-4, beta_1=0, beta_2=0.9),
+                 discriminator_optimizer=tf.keras.optimizers.Adam(2e-4, beta_1=0, beta_2=0.9),
                  generator_adversarial_objective='ns-gan',
                  discriminator_adversarial_objective='ns-gan',
                  gradient_penalty_weight=10,
                  gradient_penalty_type='dragan',
-                 additional_inputs_for_generator_train=[],
-                 additional_inputs_for_discriminator_train=[],
+                 # additional_inputs_for_generator_train=[],
+                 # additional_inputs_for_discriminator_train=[],
                  custom_objects={},
                  lr_decay_schedule_generator=lambda iter: 1.0,
                  lr_decay_schedule_discriminator=lambda iter: 1.0,
                  **kwargs):
-
         assert generator_adversarial_objective in ['ns-gan', 'lsgan', 'wgan', 'hinge']
         assert discriminator_adversarial_objective in ['ns-gan', 'lsgan', 'wgan', 'hinge']
         assert gradient_penalty_type in ['dragan', 'wgan-gp']
@@ -51,19 +48,19 @@ class GAN(object):
         else:
             self.discriminator_input = [discriminator_input]
 
+        self.generator_metric_names = []
+        self.discriminator_metric_names = []
+
         self.generator_adversarial_loss_func = self.get_generator_adversarial_loss(generator_adversarial_objective)
         self.discriminator_adversarial_loss_func = self.get_discriminator_adversarial_loss(discriminator_adversarial_objective)
 
-        self.additional_inputs_for_generator_train = additional_inputs_for_generator_train
-        self.additional_inputs_for_discriminator_train = additional_inputs_for_discriminator_train
+        # self.additional_inputs_for_generator_train = additional_inputs_for_generator_train
+        # self.additional_inputs_for_discriminator_train = additional_inputs_for_discriminator_train
         self.gradient_penalty_weight = gradient_penalty_weight
         self.gradient_penalty_type = gradient_penalty_type
 
         self.lr_decay_schedule_generator = lr_decay_schedule_generator
         self.lr_decay_schedule_discriminator = lr_decay_schedule_discriminator
-
-        self.generator_metric_names = []
-        self.discriminator_metric_names = []
 
     def get_generator_adversarial_loss(self, loss_type):
         self.generator_metric_names.append('fake')
@@ -124,16 +121,16 @@ class GAN(object):
             return None
 
     @tf.function
-    def get_gradient_penalty_loss(self):
+    def get_gradient_penalty_loss(self, discriminator_input, generator_output):
         if self.gradient_penalty_weight == 0:
             return []
 
-        if type(self.discriminator_input) == list:
-            batch_size = tf.shape(self.discriminator_input[0])[0]
-            ranks = [len(inp.get_shape().as_list()) for inp in self.discriminator_input]
+        if type(discriminator_input) == list:
+            batch_size = tf.shape(discriminator_input[0])[0]
+            ranks = [len(inp.get_shape().as_list()) for inp in discriminator_input]
         else:
-            batch_size = tf.shape(self.discriminator_input)[0]
-            ranks = [len(self.discriminator_input.get_shape().as_list())]
+            batch_size = tf.shape(discriminator_input)[0]
+            ranks = [len(discriminator_input.get_shape().as_list())]
 
         def cast_all(values, reference_type_vals):
             return [tf.cast(alpha, dtype=ref.dtype) for alpha, ref in zip(values, reference_type_vals)]
@@ -147,19 +144,18 @@ class GAN(object):
         def point_for_gp_wgan():
             weights = tf.random.uniform((batch_size, 1), minval=0, maxval=1)
             weights = [tf.reshape(weights, (-1, ) + (1, ) * (rank - 1)) for rank in ranks]
-            weights = cast_all(weights, self.discriminator_input)
-            points = [(w * r) + ((1 - w) * f) for r, f, w in zip(self.discriminator_input, self.generator_output, weights)]
+            weights = cast_all(weights, discriminator_input)
+            points = [(w * r) + ((1 - w) * f) for r, f, w in zip(discriminator_input, generator_output, weights)]
             return points
 
         def points_for_dragan():
             alphas = tf.random.uniform((batch_size, 1), minval=0, maxval=1)
             alphas = [tf.reshape(alphas, (-1, ) + (1, ) * (rank - 1)) for rank in ranks]
-            alphas = cast_all(alphas, self.discriminator_input)
+            alphas = cast_all(alphas, discriminator_input)
             fake = [tf.random.uniform(tf.shape(t), minval=0, maxval=1) * std_if_not_int(t) * 0.5
-                    for t in self.discriminator_input]
-            fake = cast_all(fake, self.discriminator_input)
-
-            points = [(w * r) + ((1 - w) * f) for r, f, w in zip(self.discriminator_input, fake, alphas)]
+                    for t in discriminator_input]
+            fake = cast_all(fake, discriminator_input)
+            points = [(w * r) + ((1 - w) * f) for r, f, w in zip(discriminator_input, fake, alphas)]
             return points
 
         points = {'wgan-gp': point_for_gp_wgan(), 'dragan': points_for_dragan()}
@@ -203,18 +199,18 @@ class GAN(object):
     def additional_discriminator_losses(self):
         return []
 
-    def collect_updates(self, model):
-        updates = []
-        for l in model.layers:
-            updates += l.updates
-        return updates
+    # def collect_updates(self, model):
+    #     updates = []
+    #     for l in model.layers:
+    #         updates += l.updates
+    #     return updates
 
     def compile_generator_train_op(self):
-        @tf.function
-        def generator_train_op(input_list): # generator_input + additional_inputs_for_generator_train + train/test]
+        def generator_train_op(generator_input):  # generator_input + additional_inputs_for_generator_train + train/test]
             loss_list = []
             with tf.GradientTape() as tape:
-                discriminator_fake_output = self.generator(input_list)
+                generator_output = self.generator(generator_input + [True])
+                discriminator_fake_output = self.discriminator([generator_output] + [True])
                 if type(discriminator_fake_output) == list:
                     discriminator_fake_output = discriminator_fake_output[0]
                 adversarial_loss = self.generator_adversarial_loss_func(discriminator_fake_output)
@@ -225,54 +221,58 @@ class GAN(object):
 
             self.generator_loss_list = loss_list
 
-
             lr_update = (self.lr_decay_schedule_generator(self.generator_optimizer.iterations) *
-                                    K.get_value(self.generator_optimizer.lr))
-            updates.append(K.update(self.generator_optimizer.lr, lr_update))
+                         K.get_value(self.generator_optimizer.lr))
+            K.set_value(self.generator_optimizer.lr, lr_update)
             return [sum(loss_list)] + loss_list
         return generator_train_op
 
     def compile_discriminator_train_op(self):
-        @tf.function
-        def discriminator_train_op():
-            losses = {'ns-gan': [ns_loss_true(self.discriminator_real_output[0]),
-                                 ns_loss_fake(self.discriminator_fake_output[0])],
-                      'lsgan': [ls_loss_true(self.discriminator_real_output[0]),
-                                ls_loss_fake(self.discriminator_fake_output[0])],
-                      'wgan': [wgan_loss_true(self.discriminator_real_output[0]),
-                               wgan_loss_fake(self.discriminator_fake_output[0])],
-                      'hinge': [hinge_loss_true(self.discriminator_real_output[0]),
-                                hinge_loss_fake(self.discriminator_fake_output[0])]}
-        loss_list = []
-        adversarial_loss = self.get_discriminator_adversarial_loss(self.generator_adversarial_objective)
-        loss_list += adversarial_loss
-        loss_list += self.get_gradient_penalty_loss()
-        loss_list += self.additional_discriminator_losses()
+        def discriminator_train_op(discriminator_input, generator_input):
+            loss_list = []
+            with tf.GradientTape() as tape:
+                generator_output = self.generator(generator_input + [True])
+                discriminator_fake_output = self.discriminator([generator_output, True])
+                discriminator_real_output = self.discriminator(discriminator_input + [True])
+                if type(discriminator_fake_output) == list:
+                    discriminator_fake_output = discriminator_fake_output[0]
+                if type(discriminator_real_output) == list:
+                    discriminator_real_output = discriminator_real_output[0]
+                adversarial_loss_real = self.discriminator_adversarial_loss_func[0](discriminator_real_output)
+                adversarial_loss_fake = self.discriminator_adversarial_loss_func[1](discriminator_fake_output)
+                loss_list += [adversarial_loss_real, adversarial_loss_fake]
+                if self.gradient_penalty_weight != 0:
+                    loss_list += self.get_gradient_penalty_loss(discriminator_input, generator_output)
+                loss_list += self.additional_discriminator_losses()
+            gradients = tape.gradient(loss_list, self.discriminator.trainable_weights)
+            self.discriminator_optimizer.apply_gradients(zip(gradients, self.discriminator.trainable_weights))
 
-        updates = []
-
-        updates += self.collect_updates(self.discriminator)
-        updates += self.collect_updates(self.generator)
-
-        print(updates)
-        updates += self.discriminator_optimizer.get_updates(params=self.discriminator.trainable_weights, loss=sum(loss_list))
-
-        inputs = self.discriminator_input + self.additional_inputs_for_discriminator_train +\
-                 self.generator_input + self.additional_inputs_for_generator_train
-
-        lr_update = (self.lr_decay_schedule_discriminator(self.discriminator_optimizer.iterations) *
-                                K.get_value(self.discriminator_optimizer.lr))
-        updates.append(K.update(self.discriminator_optimizer.lr, lr_update))
-
-        train_op = function(inputs + [K.learning_phase()], [sum(loss_list)] + loss_list, updates=updates)
-        return train_op
+            lr_update = self.lr_decay_schedule_discriminator(self.discriminator_optimizer.iterations) * \
+                        K.get_value(self.discriminator_optimizer.lr)
+            K.set_value(self.discriminator_optimizer.lr, lr_update)
+            return [sum(loss_list)] + loss_list
+        return discriminator_train_op
 
     def compile_generate_op(self):
-        return function(self.generator_input + self.additional_inputs_for_generator_train + [K.learning_phase()], self.generator_output)
+        @tf.function
+        def generate_op(generator_input):
+            generator_output = self.generator(generator_input + [K.learning_phase()])
+            return generator_output
+        return generate_op
 
     def compile_validate_op(self):
-        return function(self.generator_input + self.additional_inputs_for_generator_train + [K.learning_phase()],
-                        [sum(self.generator_loss_list)] + self.generator_loss_list)
+        @tf.function
+        def validate_op(generator_input):
+            loss_list = []
+            generator_output = self.generator(generator_input + [K.learning_phase()])
+            discriminator_fake_output = self.discriminator([generator_output] + [True])
+            if type(discriminator_fake_output) == list:
+                discriminator_fake_output = discriminator_fake_output[0]
+            adversarial_loss = self.generator_adversarial_loss_func(discriminator_fake_output)
+            loss_list.append(adversarial_loss)
+            loss_list += self.additional_generator_losses()
+            return [sum(loss_list)] + loss_list
+        return validate_op
 
     def get_generator(self):
         return self.generator
