@@ -19,7 +19,7 @@ from tqdm import tqdm
 MODEL_DIR = 'inception'
 DATA_URL = 'http://download.tensorflow.org/models/image/imagenet/inception-2015-12-05.tgz'
 softmax = None
-
+score_graph = tf.compat.v1.Graph()
 
 # Call this function with list of images. Each of elements should be a
 # numpy array with values ranging from 0 to 255.
@@ -34,7 +34,7 @@ def get_inception_score(images, splits=10):
         img = img.astype(np.float32)
         inps.append(np.expand_dims(img, 0))
     bs = 100
-    with tf.compat.v1.Session() as sess:
+    with tf.compat.v1.Session(graph=score_graph) as sess:
         preds = []
         n_batches = int(math.ceil(float(len(inps)) / float(bs)))
         print("Computing inception score!!!")
@@ -76,10 +76,13 @@ def _init_inception():
         MODEL_DIR, 'classify_image_graph_def.pb'), 'rb') as f:
         graph_def = tf.compat.v1.GraphDef()
         graph_def.ParseFromString(f.read())
-        _ = tf.import_graph_def(graph_def, name='')
+        with score_graph.as_default():
+            _ = tf.compat.v1.import_graph_def(graph_def, name='')
     # Works with an arbitrary minibatch size.
-    with tf.compat.v1.Session() as sess:
+    with tf.compat.v1.Session(graph=score_graph) as sess:
         pool3 = sess.graph.get_tensor_by_name('pool_3:0')
+        # new_shape = [None] + pool3.get_shape().as_list()[1:]
+        # pool3.set_shape(new_shape)
         ops = pool3.graph.get_operations()
         for op_idx, op in enumerate(ops):
             for o in op.outputs:
@@ -92,7 +95,11 @@ def _init_inception():
                     else:
                         new_shape.append(s)
                 # o._shape = tf.TensorShape(new_shape)
+                print('before', o.shape)
+                print('new_shape', new_shape)
                 o.set_shape(new_shape)
+                print('after', o.shape)
+
         w = sess.graph.get_operation_by_name("softmax/logits/MatMul").inputs[1]
         # logits = tf.matmul(tf.squeeze(pool3), w)
         logits = tf.matmul(pool3, w)
