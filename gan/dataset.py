@@ -118,8 +118,6 @@ class LabeledArrayDataset(ArrayDataset):
             if len(y_test.shape) == 1:
                 self._Y_test = np.expand_dims(y_test, axis=1)
 
-
-
     def number_of_batches_per_epoch(self):
         return 1000
 

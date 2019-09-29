@@ -207,8 +207,8 @@ class GAN(object):
 
     def compile_generator_train_op(self):
         def update_lr():
-            lr_update = (self.lr_decay_schedule_generator(self.generator_optimizer.iterations) *
-                         K.get_value(self.generator_optimizer.lr))
+            lr_update = self.lr_decay_schedule_generator(self.generator_optimizer.iterations) * 2e-4
+                        # K.get_value(self.generator_optimizer.lr)
             K.set_value(self.generator_optimizer.lr, lr_update)
 
         @tf.function
@@ -233,8 +233,8 @@ class GAN(object):
 
     def compile_discriminator_train_op(self):
         def update_lr():
-            lr_update = self.lr_decay_schedule_discriminator(self.discriminator_optimizer.iterations) * \
-                        K.get_value(self.discriminator_optimizer.lr)
+            lr_update = self.lr_decay_schedule_discriminator(self.discriminator_optimizer.iterations) * 2e-4
+                        # K.get_value(self.discriminator_optimizer.lr)
             K.set_value(self.discriminator_optimizer.lr, lr_update)
 
         @tf.function

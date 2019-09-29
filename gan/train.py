@@ -122,13 +122,15 @@ class Trainer(object):
         print(d_loss_str)
         
         if hasattr(self.dataset, 'next_generator_sample_test') and validation_epoch:
-            print("Validation...")
-            validation_loss_list = []
-            for _ in tqdm(range(int(self.dataset.number_of_batches_per_validation()))):
-                generator_batch = self.dataset.next_generator_sample_test()
-                loss = self.validate_op(generator_batch)
-                validation_loss_list.append(loss)
-            if int(self.dataset.number_of_batches_per_validation()) != 0:
+            batches = int(self.dataset.number_of_batches_per_validation())
+            if batches > 0:
+                print("Validation...")
+                validation_loss_list = []
+                for _ in tqdm(range(int(self.dataset.number_of_batches_per_validation()))):
+                    generator_batch = self.dataset.next_generator_sample_test()
+                    loss = self.validate_op(generator_batch)
+                    validation_loss_list.append(loss)
+
                 val_loss_str, d_loss_str = self.gan.get_losses_as_string(np.mean(np.array(validation_loss_list), axis=0),
                                                                          np.mean(np.array(discriminator_loss_list), axis=0))
                 print(val_loss_str.replace('Generator loss', 'Validation loss'))
