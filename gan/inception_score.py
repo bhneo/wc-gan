@@ -21,6 +21,7 @@ DATA_URL = 'http://download.tensorflow.org/models/image/imagenet/inception-2015-
 softmax = None
 score_graph = tf.compat.v1.Graph()
 
+
 # Call this function with list of images. Each of elements should be a
 # numpy array with values ranging from 0 to 255.
 def get_inception_score(images, splits=10):
@@ -81,8 +82,6 @@ def _init_inception():
     # Works with an arbitrary minibatch size.
     with tf.compat.v1.Session(graph=score_graph) as sess:
         pool3 = sess.graph.get_tensor_by_name('pool_3:0')
-        # new_shape = [None] + pool3.get_shape().as_list()[1:]
-        # pool3.set_shape(new_shape)
         ops = pool3.graph.get_operations()
         for op_idx, op in enumerate(ops):
             for o in op.outputs:
@@ -95,14 +94,10 @@ def _init_inception():
                     else:
                         new_shape.append(s)
                 # o._shape = tf.TensorShape(new_shape)
-                print('before', o.shape)
-                print('new_shape', new_shape)
-                o.set_shape(new_shape)
-                print('after', o.shape)
+                o.__dict__['_shape_val'] = tf.TensorShape(new_shape)
 
         w = sess.graph.get_operation_by_name("softmax/logits/MatMul").inputs[1]
-        # logits = tf.matmul(tf.squeeze(pool3), w)
-        logits = tf.matmul(pool3, w)
+        logits = tf.matmul(tf.squeeze(pool3, [1, 2]), w)
         softmax = tf.nn.softmax(logits)
 
 
