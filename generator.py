@@ -11,7 +11,7 @@ from gan.spectral_normalized_layers import SNConv2D, SNConditionalConv11, SNDens
 from functools import partial
 
 
-def create_norm(norm, after_norm, cls=None, number_of_classes=None, filters_emb = 10,
+def create_norm(norm, after_norm, decomposition='zca', cls=None, number_of_classes=None, filters_emb = 10,
                 uncoditional_conv_layer=Conv2D, conditional_conv_layer=ConditionalConv11,
                 factor_conv_layer=FactorizedConv11):
     assert norm in ['n', 'b', 'd', 'dr']
@@ -22,7 +22,7 @@ def create_norm(norm, after_norm, cls=None, number_of_classes=None, filters_emb 
     elif norm == 'b':
         norm_layer = lambda axis, name: BatchNormalization(axis=axis, center=False, scale=False, name=name)
     elif norm == 'd':
-        norm_layer = lambda axis, name: DecorelationNormalization(name=name)  # , decomposition='zca')
+        norm_layer = lambda axis, name: DecorelationNormalization(name=name, decomposition=decomposition)
     elif norm == 'dr':
         norm_layer = lambda axis, name: DecorelationNormalization(name=name, renorm=True)
 
@@ -94,8 +94,8 @@ def create_norm(norm, after_norm, cls=None, number_of_classes=None, filters_emb 
 def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=(1, ),
                    block_sizes=(128, 128, 128), resamples=("UP", "UP", "UP"),
                    first_block_shape=(4, 4, 128), number_of_classes=10, concat_cls=False,
-                   block_norm='u', block_after_norm='cs', filters_emb = 10,
-                   last_norm='u', last_after_norm='cs', gan_type=None, arch='res',
+                   block_norm='u', block_after_norm='cs', filters_emb=10,
+                   last_norm='u', last_after_norm='cs', decomposition='cholesky', gan_type=None, arch='res',
                    spectral=False, fully_diff_spectral=False, spectral_iterations=1, conv_singular=True,):
 
     assert arch in ['res', 'dcgan']
@@ -129,12 +129,12 @@ def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=
     y = dense_layer(units=np.prod(first_block_shape), kernel_initializer=glorot_init)(y)
     y = Reshape(first_block_shape)(y)
 
-    block_norm_layer = create_norm(block_norm, block_after_norm, cls=cls,
+    block_norm_layer = create_norm(block_norm, block_after_norm, decomposition=decomposition, cls=cls,
                                    number_of_classes=number_of_classes, filters_emb=filters_emb,
                                    uncoditional_conv_layer=conv_layer, conditional_conv_layer=cond_conv_layer,
                                    factor_conv_layer=factor_conv_layer)
 
-    last_norm_layer = create_norm(last_norm, last_after_norm, cls=cls,
+    last_norm_layer = create_norm(last_norm, last_after_norm, decomposition=decomposition, cls=cls,
                                   number_of_classes=number_of_classes, filters_emb=filters_emb,
                                   uncoditional_conv_layer=conv_layer, conditional_conv_layer=cond_conv_layer,
                                   factor_conv_layer=factor_conv_layer)

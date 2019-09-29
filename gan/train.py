@@ -9,17 +9,17 @@ import tensorflow as tf
 from tqdm import tqdm
 
 
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus:
-    try:
-        # Currently, memory growth needs to be the same across GPUs
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-    except RuntimeError as e:
-        # Memory growth must be set before GPUs have been initialized
-        print(e)
+# gpus = tf.config.experimental.list_physical_devices('GPU')
+# if gpus:
+#     try:
+#         # Currently, memory growth needs to be the same across GPUs
+#         for gpu in gpus:
+#             tf.config.experimental.set_memory_growth(gpu, True)
+#         logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+#         print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+#     except RuntimeError as e:
+#         # Memory growth must be set before GPUs have been initialized
+#         print(e)
 
 
 class Trainer(object):
@@ -59,7 +59,7 @@ class Trainer(object):
             batch = self.dataset.next_generator_sample_test()
         else:
             batch = self.dataset.next_generator_sample()
-        gen_images = self.generate_op(batch + [False])
+        gen_images = self.generate_op(batch, False)
         image = self.dataset.display(gen_images, batch)
         title = "epoch_{}.png".format(str(self.current_epoch).zfill(3))
         if not os.path.exists(self.output_dir):
@@ -126,11 +126,12 @@ class Trainer(object):
             validation_loss_list = []
             for _ in tqdm(range(int(self.dataset.number_of_batches_per_validation()))):
                 generator_batch = self.dataset.next_generator_sample_test()
-                loss = self.validate_op(generator_batch + [True])
+                loss = self.validate_op(generator_batch)
                 validation_loss_list.append(loss)
-            val_loss_str, d_loss_str = self.gan.get_losses_as_string(np.mean(np.array(validation_loss_list), axis=0),
-                                                                      np.mean(np.array(discriminator_loss_list), axis=0))
-            print(val_loss_str.replace('Generator loss', 'Validation loss'))
+            if int(self.dataset.number_of_batches_per_validation()) != 0:
+                val_loss_str, d_loss_str = self.gan.get_losses_as_string(np.mean(np.array(validation_loss_list), axis=0),
+                                                                         np.mean(np.array(discriminator_loss_list), axis=0))
+                print(val_loss_str.replace('Generator loss', 'Validation loss'))
 
         print("Discriminator lr %s" % K.get_value(self.gan.discriminator_optimizer.lr))
         print("Generator lr %s" % K.get_value(self.gan.generator_optimizer.lr))

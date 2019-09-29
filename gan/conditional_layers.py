@@ -618,7 +618,7 @@ class DecorelationNormalization(Layer):
                  moving_mean_initializer='zeros',
                  moving_cov_initializer='identity',
                  **kwargs):
-        assert decomposition in ['cholesky', 'zca']
+        assert decomposition in ['cholesky', 'zca', 'pca']
         super(DecorelationNormalization, self).__init__(**kwargs)
         self.supports_masking = True
         self.momentum = momentum
@@ -680,8 +680,9 @@ class DecorelationNormalization(Layer):
 
         if self.decomposition == 'cholesky':
             def get_inv_sqrt(ff):
-                sqrt = tf.linalg.cholesky(ff)
-                inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.eye(c))
+                with tf.device('/cpu:0'):
+                    sqrt = tf.linalg.cholesky(ff)
+                    inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.eye(c))
                 return sqrt, inv_sqrt
         elif self.decomposition == 'zca':
             def get_inv_sqrt(ff):
@@ -956,8 +957,6 @@ class FactorizedConv11(Layer):
         self.activity_regularizer = regularizers.get(activity_regularizer)
         self.kernel_constraint = constraints.get(kernel_constraint)
         self.bias_constraint = constraints.get(bias_constraint)
-
-
 
     def build(self, input_shape):
         if self.data_format == 'channels_first':

@@ -206,6 +206,12 @@ class GAN(object):
     #     return updates
 
     def compile_generator_train_op(self):
+        def update_lr():
+            lr_update = (self.lr_decay_schedule_generator(self.generator_optimizer.iterations) *
+                         K.get_value(self.generator_optimizer.lr))
+            K.set_value(self.generator_optimizer.lr, lr_update)
+
+        @tf.function
         def generator_train_op(generator_input):  # generator_input + additional_inputs_for_generator_train + train/test]
             loss_list = []
             with tf.GradientTape() as tape:
@@ -221,25 +227,31 @@ class GAN(object):
 
             self.generator_loss_list = loss_list
 
-            lr_update = (self.lr_decay_schedule_generator(self.generator_optimizer.iterations) *
-                         K.get_value(self.generator_optimizer.lr))
-            K.set_value(self.generator_optimizer.lr, lr_update)
+            tf.py_function(update_lr, inp=[], Tout=[])
             return [sum(loss_list)] + loss_list
         return generator_train_op
 
     def compile_discriminator_train_op(self):
+        def update_lr():
+            lr_update = self.lr_decay_schedule_discriminator(self.discriminator_optimizer.iterations) * \
+                        K.get_value(self.discriminator_optimizer.lr)
+            K.set_value(self.discriminator_optimizer.lr, lr_update)
+
+        @tf.function
         def discriminator_train_op(discriminator_input, generator_input):
             loss_list = []
             with tf.GradientTape() as tape:
                 generator_output = self.generator(generator_input + [True])
                 discriminator_fake_output = self.discriminator([generator_output, True])
-                discriminator_real_output = self.discriminator(discriminator_input + [True])
                 if type(discriminator_fake_output) == list:
                     discriminator_fake_output = discriminator_fake_output[0]
+                adversarial_loss_fake = self.discriminator_adversarial_loss_func[1](discriminator_fake_output)
+
+                discriminator_real_output = self.discriminator(discriminator_input + [True])
                 if type(discriminator_real_output) == list:
                     discriminator_real_output = discriminator_real_output[0]
                 adversarial_loss_real = self.discriminator_adversarial_loss_func[0](discriminator_real_output)
-                adversarial_loss_fake = self.discriminator_adversarial_loss_func[1](discriminator_fake_output)
+
                 loss_list += [adversarial_loss_real, adversarial_loss_fake]
                 if self.gradient_penalty_weight != 0:
                     loss_list += self.get_gradient_penalty_loss(discriminator_input, generator_output)
@@ -247,16 +259,14 @@ class GAN(object):
             gradients = tape.gradient(loss_list, self.discriminator.trainable_weights)
             self.discriminator_optimizer.apply_gradients(zip(gradients, self.discriminator.trainable_weights))
 
-            lr_update = self.lr_decay_schedule_discriminator(self.discriminator_optimizer.iterations) * \
-                        K.get_value(self.discriminator_optimizer.lr)
-            K.set_value(self.discriminator_optimizer.lr, lr_update)
+            tf.py_function(update_lr, inp=[], Tout=[])
             return [sum(loss_list)] + loss_list
         return discriminator_train_op
 
     def compile_generate_op(self):
         @tf.function
-        def generate_op(generator_input):
-            generator_output = self.generator(generator_input + [K.learning_phase()])
+        def generate_op(generator_input, phase):
+            generator_output = self.generator(generator_input + [phase])
             return generator_output
         return generate_op
 
@@ -264,7 +274,7 @@ class GAN(object):
         @tf.function
         def validate_op(generator_input):
             loss_list = []
-            generator_output = self.generator(generator_input + [K.learning_phase()])
+            generator_output = self.generator(generator_input + [True])
             discriminator_fake_output = self.discriminator([generator_output] + [True])
             if type(discriminator_fake_output) == list:
                 discriminator_fake_output = discriminator_fake_output[0]
