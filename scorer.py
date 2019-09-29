@@ -53,11 +53,11 @@ def compute_scores(epoch, image_shape, generator, dataset, images_inception=5000
         return
     images = np.empty((number_of_images, ) + image_shape)
     labels = np.empty((number_of_images, ))
-    generator_input = generator.get_input_at(0)
-    if type(generator_input) != list:
-        generator_input = [generator_input]
+    # generator_input = generator.get_input_at(0)
+    # if type(generator_input) != list:
+    #     generator_input = [generator_input]
 
-    predict_fn = K.function(generator_input + [K.learning_phase()], [generator.get_output_at(0)])
+    # predict_fn = K.function(generator_input + [K.learning_phase()], [generator.get_output_at(0)])
     
     bs = dataset._batch_size
     conditional = False
@@ -69,7 +69,7 @@ def compute_scores(epoch, image_shape, generator, dataset, images_inception=5000
         if len(g_s) == 2:
             labels[begin:end] = np.squeeze(g_s[1], axis=1)[:n_images]
             conditional = True
-        images[begin:end] = predict_fn(g_s + [False])[0][:n_images]
+        images[begin:end] = generator(g_s + [False])[:n_images]
 
     images *= 127.5
     images += 127.5

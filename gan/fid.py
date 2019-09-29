@@ -36,10 +36,10 @@ class InvalidFIDException(Exception):
 def create_inception_graph(pth):
     """Creates a graph from saved GraphDef file."""
     # Creates graph from saved graph_def.pb.
-    with tf.gfile.FastGFile( pth, 'rb') as f:
-        graph_def = tf.GraphDef()
-        graph_def.ParseFromString( f.read())
-        _ = tf.import_graph_def( graph_def, name='FID_Inception_Net')
+    with tf.compat.v1.gfile.FastGFile( pth, 'rb') as f:
+        graph_def = tf.compat.v1.GraphDef()
+        graph_def.ParseFromString(f.read())
+        _ = tf.import_graph_def(graph_def, name='FID_Inception_Net')
 #-------------------------------------------------------------------------------
 
 
@@ -54,14 +54,15 @@ def _get_inception_layer(sess):
         for o in op.outputs:
             shape = o.get_shape()
             if shape._dims is not None:
-              shape = [s.value for s in shape]
-              new_shape = []
-              for j, s in enumerate(shape):
-                if s == 1 and j == 0:
-                  new_shape.append(None)
-                else:
-                  new_shape.append(s)
-              o._shape = tf.TensorShape(new_shape)
+                shape = [s.value for s in shape]
+                new_shape = []
+                for j, s in enumerate(shape):
+                    if s == 1 and j == 0:
+                        new_shape.append(None)
+                    else:
+                        new_shape.append(s)
+                # o._shape = tf.TensorShape(new_shape)
+                o.__dict__['_shape_val'] = tf.TensorShape(new_shape)
     return pool3
 #-------------------------------------------------------------------------------
 
@@ -88,7 +89,7 @@ def get_activations(images, sess, batch_size=50, verbose=False):
         batch_size = d0
     n_batches = d0//batch_size
     n_used_imgs = n_batches*batch_size
-    pred_arr = np.empty((n_used_imgs,2048))
+    pred_arr = np.empty((n_used_imgs, 2048))
     for i in tqdm(range(n_batches)):
         if verbose:
             print("\rPropagating batch %d/%d" % (i+1, n_batches), end="", flush=True)
@@ -96,7 +97,7 @@ def get_activations(images, sess, batch_size=50, verbose=False):
         end = start + batch_size
         batch = images[start:end]
         pred = sess.run(inception_layer, {'FID_Inception_Net/ExpandDims:0': batch})
-        pred_arr[start:end] = pred.reshape(batch_size,-1)
+        pred_arr[start:end] = pred.reshape(batch_size, -1)
     if verbose:
         print(" done")
     return pred_arr
@@ -226,14 +227,16 @@ def calculate_fid_given_paths(paths, inception_path):
             raise RuntimeError("Invalid path: %s" % p)
 
     create_inception_graph(str(inception_path))
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
+    with tf.compat.v1.Session() as sess:
+        sess.run(tf.compat.v1.global_variables_initializer())
         m1, s1 = _handle_path(paths[0], sess)
         m2, s2 = _handle_path(paths[1], sess)
         fid_value = calculate_frechet_distance(m1, s1, m2, s2)
         return fid_value
 
+
 initialized = False
+
 
 def calculate_fid_given_arrays(arrays, cache_file=None):
     print ("Computing FID...")
@@ -241,10 +244,10 @@ def calculate_fid_given_arrays(arrays, cache_file=None):
     if not initialized:
         inception_path = check_or_download_inception(None)
         create_inception_graph(str(inception_path))
-        with tf.Session() as sess:
-             sess.run(tf.global_variables_initializer())
+        with tf.compat.v1.Session() as sess:
+             sess.run(tf.compat.v1.global_variables_initializer())
         initialized = True
-    with tf.Session() as sess: 
+    with tf.compat.v1.Session() as sess:
         if cache_file is None:
             m_true_data, s_true_data = calculate_activation_statistics(arrays[0], sess)
         else:

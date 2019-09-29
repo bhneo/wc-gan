@@ -4,10 +4,9 @@ import sys
 sys.path.append(os.path.abspath('./gan'))
 
 
-from tensorflow.python.keras.optimizers import Adam
-
+from tensorflow.python.keras.optimizer_v2.adam import Adam
 from gan.dataset import LabeledArrayDataset
-from gan.cmd import parser_with_default_args
+from gan.args import parser_with_default_args
 from gan.train import Trainer
 from gan.ac_gan import AC_GAN
 from gan.projective_gan import ProjectiveGAN
@@ -107,18 +106,25 @@ def get_lr_decay_schedule(args):
     number_of_iters_discriminator = 1000. * args.number_of_epochs * args.training_ratio
 
     if args.lr_decay_schedule is None:
-        lr_decay_schedule_generator = lambda iter: 1.
-        lr_decay_schedule_discriminator = lambda iter: 1.
+        def lr_decay_schedule_generator(iter):
+            return 1.
+
+        def lr_decay_schedule_discriminator(iter):
+            return 1.
     elif args.lr_decay_schedule == 'linear':
-        lr_decay_schedule_generator = lambda iter: K.maximum(0., 1. - K.cast(iter, 'float32') / number_of_iters_generator)
-        lr_decay_schedule_discriminator = lambda iter: K.maximum(0., 1. - K.cast(iter, 'float32') / number_of_iters_discriminator)
+        def lr_decay_schedule_generator(iter):
+            return tf.maximum(0., 1. - tf.cast(iter, 'float32') / number_of_iters_generator)
+
+        def lr_decay_schedule_discriminator(iter):
+            return tf.maximum(0., 1. - tf.cast(iter, 'float32') / number_of_iters_discriminator)
     elif args.lr_decay_schedule == 'half-linear':
-        lr_decay_schedule_generator = lambda iter: tf.where(
-                                K.less(iter, K.cast(number_of_iters_generator / 2, 'int64')),
-                                tf.maximum(0., 1. - (K.cast(iter, 'float32') / number_of_iters_generator)), 0.5)
-        lr_decay_schedule_discriminator = lambda iter: tf.where(
-                                K.less(iter, K.cast(number_of_iters_discriminator / 2, 'int64')),
-                                tf.maximum(0., 1. - (K.cast(iter, 'float32') / number_of_iters_discriminator)), 0.5)
+        def lr_decay_schedule_generator(iter):
+            return tf.where(tf.less(iter, tf.cast(number_of_iters_generator / 2, 'int64')),
+                            tf.maximum(0., 1. - (tf.cast(iter, 'float32') / number_of_iters_generator)), 0.5)
+
+        def lr_decay_schedule_discriminator(iter):
+            return tf.where(tf.less(iter, tf.cast(number_of_iters_discriminator / 2, 'int64')),
+                            tf.maximum(0., 1. - (tf.cast(iter, 'float32') / number_of_iters_discriminator)), 0.5)
     elif args.lr_decay_schedule == 'linear-end':
         decay_at = 0.828
 
@@ -128,22 +134,26 @@ def get_lr_decay_schedule(args):
         number_of_iters_after_decay_generator = number_of_iters_generator * (1 - decay_at)
         number_of_iters_after_decay_discriminator = number_of_iters_discriminator * (1 - decay_at)
 
+        def lr_decay_schedule_generator(iter):
+            return tf.where(tf.greater(iter, K.cast(number_of_iters_until_decay_generator, 'int64')),
+                            tf.maximum(0., 1. - (K.cast(iter, 'float32') - number_of_iters_until_decay_generator) / number_of_iters_after_decay_generator), 1)
 
-        lr_decay_schedule_generator = lambda iter: tf.where(
-                                K.greater(iter, K.cast(number_of_iters_until_decay_generator, 'int64')),
-                                tf.maximum(0., 1. - (K.cast(iter, 'float32') - number_of_iters_until_decay_generator) / number_of_iters_after_decay_generator), 1)
-        lr_decay_schedule_discriminator = lambda iter: tf.where(
-                                K.greater(iter, K.cast(number_of_iters_until_decay_discriminator, 'int64')),
-                                tf.maximum(0., 1. - (K.cast(iter, 'float32') - number_of_iters_until_decay_discriminator) / number_of_iters_after_decay_discriminator), 1)
+        def lr_decay_schedule_discriminator(iter):
+            return tf.where(tf.greater(iter, K.cast(number_of_iters_until_decay_discriminator, 'int64')),
+                            tf.maximum(0., 1. - (K.cast(iter, 'float32') - number_of_iters_until_decay_discriminator) / number_of_iters_after_decay_discriminator), 1)
     elif args.lr_decay_schedule.startswith("dropat"):
         drop_at = int(args.lr_decay_schedule.replace('dropat', ''))
         drop_at_generator = drop_at * 1000
         drop_at_discriminator = drop_at * 1000 * args.training_ratio
-        print ("Drop at generator %s" % drop_at_generator)
-        lr_decay_schedule_generator = lambda iter: (tf.where(K.less(iter, drop_at_generator), 1.,  0.1) *
-                                                     K.maximum(0., 1. - K.cast(iter, 'float32') / number_of_iters_generator))
-        lr_decay_schedule_discriminator = lambda iter: (tf.where(K.less(iter, drop_at_discriminator), 1.,  0.1) *
-                                                        K.maximum(0., 1. - K.cast(iter, 'float32') / number_of_iters_discriminator))
+        print("Drop at generator %s" % drop_at_generator)
+
+        def lr_decay_schedule_generator(iter):
+            return tf.where(tf.less(iter, drop_at_generator), 1.,  0.1) * \
+                   tf.maximum(0., 1. - tf.cast(iter, 'float32') / number_of_iters_generator)
+
+        def lr_decay_schedule_discriminator(iter):
+            return tf.where(tf.less(iter, drop_at_discriminator), 1.,  0.1) * \
+                   tf.maximum(0., 1. - tf.cast(iter, 'float32') / number_of_iters_discriminator)
     else:
         assert False
 
@@ -164,7 +174,7 @@ def get_generator_params(args):
             params.resamples = ("UP", "UP", "UP", "UP")
         elif args.dataset.endswith('imagenet'):
             params.block_sizes = [args.generator_filters, args.generator_filters,
-				  args.generator_filters, args.generator_filters / 2, args.generator_filters / 4]
+                                  args.generator_filters, args.generator_filters / 2, args.generator_filters / 4]
  
             params.resamples = ("UP",  "UP", "UP", "UP", "UP")
         else:
@@ -204,15 +214,15 @@ def get_discriminator_params(args):
     params.input_image_shape = args.image_shape
     params.input_cls_shape = (1, )
     if args.arch == 'res':
-       if args.dataset == 'tiny-imagenet':
+        if args.dataset == 'tiny-imagenet':
             params.resamples = ("DOWN", "DOWN", "DOWN", "SAME", "SAME")
             params.block_sizes = [args.discriminator_filters / 4, args.discriminator_filters / 2, args.discriminator_filters,
                                   args.discriminator_filters, args.discriminator_filters]      
-       elif args.dataset.endswith('imagenet'):        
+        elif args.dataset.endswith('imagenet'):
             params.block_sizes = [args.discriminator_filters / 16, args.discriminator_filters / 8, args.discriminator_filters / 4,
                                   args.discriminator_filters / 2, args.discriminator_filters, args.discriminator_filters]
             params.resamples = ("DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "SAME")
-       else:
+        else:
             params.block_sizes = tuple([args.discriminator_filters] * 4)
             params.resamples = ('DOWN', "DOWN", "SAME", "SAME")
     else:
@@ -260,7 +270,7 @@ def main():
 
     parser.add_argument("--beta1", default=0, type=float, help='Adam parameter')
     parser.add_argument("--beta2", default=0.9, type=float, help='Adam parameter')
-    parser.add_argument("--lr_decay_schedule", default=None,
+    parser.add_argument("--lr_decay_schedule", default='linear',
                         help='Learnign rate decay schedule:'
                              'None - no decay.'
                              'linear - linear decay to zero.'
@@ -269,7 +279,7 @@ def main():
                              'dropat30 - drop lr 10 times at 30 epoch (any number insdead of 30 allowed).')
 
     parser.add_argument("--generator_spectral", default=0, type=int, help='Use spectral norm in generator.')
-    parser.add_argument("--discriminator_spectral", default=0, type=int, help='Use spectral norm in discriminator.')
+    parser.add_argument("--discriminator_spectral", default=1, type=int, help='Use spectral norm in discriminator.')
  
     parser.add_argument("--fully_diff_spectral", default=0, type=int, help='Fully difirentiable spectral normalization.')
     parser.add_argument("--spectral_iterations", default=1, type=int, help='Number of iteration per spectral update.')
@@ -280,18 +290,18 @@ def main():
 
     parser.add_argument("--filters_emb", default=10, type=int, help='Number of inner filters in factorized conv.')
 
-    parser.add_argument("--generator_block_norm", default='b', choices=['n', 'b', 'd', 'dr'],
+    parser.add_argument("--generator_block_norm", default='d', choices=['n', 'b', 'd', 'dr'],
                         help='Normalization in generator block. b - batch, d - whitening, n - none, '
                              'dr - whitening with renornaliazation.')
-    parser.add_argument("--generator_block_after_norm", default='ucs',
+    parser.add_argument("--generator_block_after_norm", default='uconv',
                         choices=['ccs', 'fconv', 'ucs', 'uccs', 'ufconv', 'cconv', 'uconv', 'ucconv','ccsuconv', 'n'],
                         help="Layer after block normalization. ccs - conditional shift and scale."
                              "ucs - uncoditional shift and scale. ucconv - condcoloring. ufconv - condcoloring + sa."
                              "n - None.")
-    parser.add_argument("--generator_last_norm", default='b', choices=['n', 'b', 'd', 'dr'],
+    parser.add_argument("--generator_last_norm", default='d', choices=['n', 'b', 'd', 'dr'],
                         help='Normalization in generator block. b - batch, d - whitening, n - none, '
                              'dr - whitening with renornaliazation.')
-    parser.add_argument("--generator_last_after_norm", default='ucs',
+    parser.add_argument("--generator_last_after_norm", default='uconv',
                         choices=['ccs', 'ucs', 'uccs', 'ufconv', 'cconv', 'uconv', 'ucconv', 'ccsuconv', 'n'],
                         help="Layer after block normalization. ccs - conditional shift and scale."
                              "ucs - uncoditional shift and scale. ucconv - condcoloring. ufconv - condcoloring + sa."
@@ -299,7 +309,7 @@ def main():
     parser.add_argument("--generator_batch_multiple", default=2, type=int,
                         help="Size of the generator batch, multiple of batch_size.")
     parser.add_argument("--generator_concat_cls", default=0, type=int, help='Concat labels to noise in generator.')
-    parser.add_argument("--generator_filters", default=128, type=int, help='Base number of filters in generator block.')
+    parser.add_argument("--generator_filters", default=256, type=int, help='Base number of filters in generator block.')
 
     parser.add_argument("--discriminator_norm", default='n', choices=['n', 'b', 'd', 'dr'],
                         help='Normalization in disciminator block. b - batch, d - whitening, n - none, '

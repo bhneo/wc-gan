@@ -154,6 +154,7 @@ class LabeledArrayDataset(ArrayDataset):
 
     def display(self, output_batch, input_batch=None):
         batch = output_batch[0]
+        batch = np.expand_dims(batch, 0)
         image = super(LabeledArrayDataset, self).display(batch)
         image = (image * 127.5) + 127.5
         image = np.squeeze(np.round(image).astype(np.uint8))

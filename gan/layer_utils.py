@@ -13,6 +13,7 @@ from tensorflow.python.keras.layers import LeakyReLU
 
 import numpy as np
 
+
 def jacobian(y_flat, x):
     n = y_flat.shape[0]
 
