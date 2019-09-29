@@ -1719,8 +1719,3 @@ def test_dbn():
     out = DecorelationNormalization()(data)
     print()
 
-
-if __name__ == '__main__':
-    data = tf.random.normal([128, 16, 16, 8])
-    out = DecorelationNormalization()(data)
-    print()
