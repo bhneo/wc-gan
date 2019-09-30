@@ -136,6 +136,24 @@ class SNConv2D(Conv2D):
         return outputs
 
 
+def test_sn():
+    SN = SNConv2D(kernel_size=(3,3), filters=64, padding='same')
+
+    @tf.function
+    def do_sn(data):
+        out = SN(data)
+        return out
+
+    data = tf.random.normal([128, 16, 16, 64])
+    out = do_sn(data)
+    print(tf.reduce_mean(SN.u))
+    print(tf.reduce_mean(SN.u))
+    for _ in range(100):
+        out = do_sn(out)
+    print(tf.reduce_mean(SN.u))
+
+
+
 class SNDense(Dense):
     def __init__(self, sigma_initializer=RandomNormal(0, 1), spectral_iterations=1,
                  fully_diff_spectral=True, stateful=False, **kwargs):

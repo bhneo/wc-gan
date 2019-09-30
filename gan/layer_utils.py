@@ -193,7 +193,7 @@ def dcblock(x, kernel_size, resample, nfilters, name, norm=BatchNormalization, i
     assert resample in ["UP", "SAME", "DOWN"]
 
     feature_axis = 1 if K.image_data_format() == 'channels_first' else -1
-
+    nfilters = int(nfilters)
     convpath = x
     if resample == "UP":
         convpath = norm(axis=feature_axis, name=name + '.bn')(convpath)

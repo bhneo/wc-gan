@@ -652,17 +652,17 @@ class DecorelationNormalization(Layer):
                                           experimental_autocast=False)
         self.built = True
 
-    def _assign_moving_average(self, variable, value, momentum, inputs_size):
-        with K.name_scope('AssignMovingAvg') as scope:
-            with ops.colocate_with(variable):
-                decay = ops.convert_to_tensor(1.0 - momentum, name='decay')
-                if decay.dtype != variable.dtype.base_dtype:
-                    decay = math_ops.cast(decay, variable.dtype.base_dtype)
-                update_delta = (variable - math_ops.cast(value, variable.dtype)) * decay
-                if inputs_size is not None:
-                    update_delta = array_ops.where(inputs_size > 0, update_delta,
-                                                   K.zeros_like(update_delta))
-                return state_ops.assign_sub(variable, update_delta, name=scope)
+    # def _assign_moving_average(self, variable, value, momentum, inputs_size):
+    #     with K.name_scope('AssignMovingAvg') as scope:
+    #         with ops.colocate_with(variable):
+    #             decay = ops.convert_to_tensor(1.0 - momentum, name='decay')
+    #             if decay.dtype != variable.dtype.base_dtype:
+    #                 decay = math_ops.cast(decay, variable.dtype.base_dtype)
+    #             update_delta = (variable - math_ops.cast(value, variable.dtype)) * decay
+    #             if inputs_size is not None:
+    #                 update_delta = array_ops.where(inputs_size > 0, update_delta,
+    #                                                K.zeros_like(update_delta))
+    #             return state_ops.assign_sub(variable, update_delta, name=scope)
 
     def call(self, inputs, training=None):
         _, w, h, c = K.int_shape(inputs)
@@ -707,14 +707,14 @@ class DecorelationNormalization(Layer):
 
         def train():
             ff_apr = tf.matmul(f, f, transpose_b=True) / (tf.cast(bs*w*h, tf.float32) - 1.)
-            # self.add_update([K.moving_average_update(self.moving_mean,
-            #                                          m,
-            #                                          self.momentum),
-            #                  K.moving_average_update(self.moving_cov,
-            #                                          ff_apr,
-            #                                          self.momentum)])
-            self.add_update([self._assign_moving_average(self.moving_mean, m, self.momentum, None),
-                             self._assign_moving_average(self.moving_cov, ff_apr, self.momentum, None)])
+            self.add_update([K.moving_average_update(self.moving_mean,
+                                                     m,
+                                                     self.momentum),
+                             K.moving_average_update(self.moving_cov,
+                                                     ff_apr,
+                                                     self.momentum)])
+            # self.add_update([self._assign_moving_average(self.moving_mean, m, self.momentum, None),
+            #                  self._assign_moving_average(self.moving_cov, ff_apr, self.momentum, None)])
             ff_apr_shrinked = (1 - self.epsilon) * ff_apr + tf.eye(c) * self.epsilon
             
             if self.renorm:
