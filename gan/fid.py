@@ -91,7 +91,7 @@ def get_activations(images, sess, batch_size=50, verbose=False):
     n_batches = d0//batch_size
     n_used_imgs = n_batches*batch_size
     pred_arr = np.empty((n_used_imgs, 2048))
-    for i in tqdm(range(n_batches)):
+    for i in tqdm(range(n_batches), ascii=True):
         if verbose:
             print("\rPropagating batch %d/%d" % (i+1, n_batches), end="", flush=True)
         start = i*batch_size

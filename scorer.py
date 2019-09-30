@@ -61,7 +61,7 @@ def compute_scores(epoch, image_shape, generator, dataset, images_inception=5000
     
     bs = dataset._batch_size
     conditional = False
-    for begin in tqdm(range(0, number_of_images, bs)):
+    for begin in tqdm(range(0, number_of_images, bs), ascii=True):
         
         end = min(number_of_images, begin + bs)
         n_images = end - begin

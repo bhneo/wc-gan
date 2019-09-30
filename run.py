@@ -337,13 +337,16 @@ def main():
                           batch_size=args.batch_size,
                           supervised=args.gan_type is not None)
 
-    args.output_dir = "output/%s_%s_%s" % (args.name, args.phase, time())
+    # args.output_dir = "output/%s_%s_%s" % (args.name, args.phase, time())
+    args.output_dir = "output/%s" % (args.name)
     print(args.output_dir)
     args.checkpoints_dir = args.output_dir
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
-    with open(os.path.join(args.output_dir, 'config.json'), 'w') as outfile:
-        json.dump(vars(args), outfile, indent=4)
+
+    if not os.path.exists(args.output_dir + '/config.json'):
+        with open(os.path.join(args.output_dir, 'config.json'), 'w') as outfile:
+            json.dump(vars(args), outfile, indent=4)
 
     image_shape_dict = {'mnist': (28, 28, 1),
                         'fashion-mnist': (28, 28, 1),
@@ -355,7 +358,7 @@ def main():
 
     args.image_shape = image_shape_dict[args.dataset]
     print("Image shape %s x %s x %s" % args.image_shape)
-    args.fid_cache_file = "output/%s_fid.npz" % args.dataset
+    args.fid_cache_file = args.checkpoints_dir + "/%s_fid.npz" % args.dataset
 
     discriminator_params = get_discriminator_params(args)
     generator_params = get_generator_params(args)

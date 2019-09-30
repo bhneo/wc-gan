@@ -682,7 +682,7 @@ class DecorelationNormalization(Layer):
             def get_inv_sqrt(ff):
                 with tf.device('/cpu:0'):
                     sqrt = tf.linalg.cholesky(ff)
-                    inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.eye(c))
+                inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.eye(c))
                 return sqrt, inv_sqrt
         elif self.decomposition == 'zca':
             def get_inv_sqrt(ff):

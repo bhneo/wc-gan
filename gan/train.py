@@ -109,8 +109,8 @@ class Trainer(object):
         print("Epoch: %i" % self.current_epoch)
         discriminator_loss_list = []
         generator_loss_list = []
-        
-        for _ in tqdm(range(int(self.dataset.number_of_batches_per_epoch()))):
+
+        for _ in tqdm(range(int(self.dataset.number_of_batches_per_epoch())), ascii=True):
             try:
                 self.train_one_step(discriminator_loss_list, generator_loss_list)
             except tf.errors.InvalidArgumentError as err:
@@ -126,7 +126,7 @@ class Trainer(object):
             if batches > 0:
                 print("Validation...")
                 validation_loss_list = []
-                for _ in tqdm(range(int(self.dataset.number_of_batches_per_validation()))):
+                for _ in tqdm(range(int(self.dataset.number_of_batches_per_validation())), ascii=True):
                     generator_batch = self.dataset.next_generator_sample_test()
                     loss = self.validate_op(generator_batch)
                     validation_loss_list.append(loss)
