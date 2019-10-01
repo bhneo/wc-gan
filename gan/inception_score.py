@@ -36,8 +36,8 @@ def get_inception_score(images, splits=10):
   with tf.Session() as sess:
     preds = []
     n_batches = int(math.ceil(float(len(inps)) / float(bs)))
-    print ("Computing inception score!!!")
-    for i in tqdm(range(n_batches)):
+    print("Computing inception score!!!")
+    for i in tqdm(range(n_batches), ascii=True):
 #        sys.stdout.write(".")
 #        sys.stdout.flush()
         inp = inps[(i * bs):min((i + 1) * bs, len(inps))]
@@ -47,10 +47,10 @@ def get_inception_score(images, splits=10):
     preds = np.concatenate(preds, 0)
     scores = []
     for i in range(splits):
-      part = preds[(i * preds.shape[0] // splits):((i + 1) * preds.shape[0] // splits), :]
-      kl = part * (np.log(part) - np.log(np.expand_dims(np.mean(part, 0), 0)))
-      kl = np.mean(np.sum(kl, 1))
-      scores.append(np.exp(kl))
+        part = preds[(i * preds.shape[0] // splits):((i + 1) * preds.shape[0] // splits), :]
+        kl = part * (np.log(part) - np.log(np.expand_dims(np.mean(part, 0), 0)))
+        kl = np.mean(np.sum(kl, 1))
+        scores.append(np.exp(kl))
     return np.mean(scores), np.std(scores)
 
 # This function is called automatically.
@@ -90,10 +90,10 @@ def _init_inception():
                 else:
                     new_shape.append(s)
             # o._shape = tf.TensorShape(new_shape)
-            o.set_shape(new_shape)
+            o.__dict__['_shape_val'] = tf.TensorShape(new_shape)
+
     w = sess.graph.get_operation_by_name("softmax/logits/MatMul").inputs[1]
-    # logits = tf.matmul(tf.squeeze(pool3), w)
-    logits = tf.matmul(pool3, w)
+    logits = tf.matmul(tf.squeeze(pool3, [1, 2]), w)
     softmax = tf.nn.softmax(logits)
 
 if softmax is None:

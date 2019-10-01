@@ -1,9 +1,9 @@
 from tensorflow.python.keras.models import load_model
 import tensorflow as tf
 import numpy as np
-from tensorflow.keras.optimizers import Adam
-import tensorflow.keras.backend as K
-from tensorflow.keras.backend import function
+from tensorflow.python.keras.optimizers import Adam
+from tensorflow.python.keras import backend as K
+from tensorflow.python.keras.backend import function
 
 
 class GAN(object):
@@ -20,7 +20,6 @@ class GAN(object):
                  lr_decay_schedule_generator=lambda iter: 1.0,
                  lr_decay_schedule_discriminator=lambda iter: 1.0,
                  **kwargs):
-
         assert generator_adversarial_objective in ['ns-gan', 'lsgan', 'wgan', 'hinge']
         assert discriminator_adversarial_objective in ['ns-gan', 'lsgan', 'wgan', 'hinge']
         assert gradient_penalty_type in ['dragan', 'wgan-gp']
@@ -250,7 +249,6 @@ class GAN(object):
 
         print (updates)
         updates += self.discriminator_optimizer.get_updates(params=self.discriminator.trainable_weights, loss=sum(loss_list))
-              
 
         inputs = self.discriminator_input + self.additional_inputs_for_discriminator_train +\
                  self.generator_input + self.additional_inputs_for_generator_train

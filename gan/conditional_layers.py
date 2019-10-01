@@ -1,14 +1,20 @@
-from tensorflow.python.keras.engine import Layer, InputSpec
+import tensorflow as tf
+
+from tensorflow.python.keras.layers import Layer, InputSpec
 from tensorflow.python.keras import initializers, regularizers, constraints
 from tensorflow.python.keras.backend import _preprocess_padding
 from tensorflow.python.keras import backend as K
-import tensorflow as tf
 from tensorflow.python.keras.utils import conv_utils
 from tensorflow.python.keras import activations
 from tensorflow.python.keras.layers import BatchNormalization, Conv2D, UpSampling2D, Activation, Add, AveragePooling2D, Reshape, LeakyReLU
 from layer_utils import he_init, glorot_init
 from tensorflow.python.keras.optimizers import Adam
-from tensorflow.python.keras.initializers import Identity
+from tensorflow.python.keras.utils import tf_utils
+from tensorflow.python.framework import ops
+from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import math_ops
+from tensorflow.python.ops import state_ops
+from tensorflow.python.ops import variables as tf_variables
 
 
 class ConditionalAdamOptimizer(Adam):
@@ -604,21 +610,22 @@ class CenterScale(Layer):
 
 class DecorelationNormalization(Layer):
     def __init__(self,
-                  momentum=0.99,
-                  epsilon=1e-3,
-                  moving_mean_initializer='zeros',
-                  decomposition='cholesky',
-                  renorm=False,
-                  moving_cov_initializer=Identity(),
-                  **kwargs):
-        assert decomposition in ['cholesky', 'zca']
+                 axis=-1,
+                 momentum=0.99,
+                 epsilon=1e-3,
+                 decomposition='cholesky',
+                 renorm=False,
+                 moving_mean_initializer='zeros',
+                 moving_cov_initializer='identity',
+                 **kwargs):
+        assert decomposition in ['cholesky', 'zca', 'pca']
         super(DecorelationNormalization, self).__init__(**kwargs)
         self.supports_masking = True
         self.momentum = momentum
         self.epsilon = epsilon
         self.moving_mean_initializer = initializers.get(moving_mean_initializer)
         self.moving_cov_initializer = initializers.get(moving_cov_initializer)
-        self.axis = -1
+        self.axis = axis
         self.renorm = renorm
         self.decomposition = decomposition
 
@@ -629,22 +636,21 @@ class DecorelationNormalization(Layer):
                              'input tensor should have a defined dimension '
                              'but the layer received an input with shape ' +
                              str(input_shape) + '.')
-        shape = (dim, )
-        self.moving_mean = self.add_weight(
-            shape=(dim, 1),
-            name='moving_mean',
-            initializer=self.moving_mean_initializer,
-            trainable=False)
-        self.moving_cov = self.add_weight(
-            shape=(dim, dim),
-            name='moving_variance',
-            initializer=self.moving_cov_initializer,
-            trainable=False)
+        self.moving_mean = self.add_weight(shape=(dim, 1),
+                                           name='moving_mean',
+                                           synchronization=tf_variables.VariableSynchronization.ON_READ,
+                                           initializer=self.moving_mean_initializer,
+                                           trainable=False,
+                                           aggregation=tf_variables.VariableAggregation.MEAN)
+        self.moving_cov = self.add_weight(shape=(dim, dim),
+                                          name='moving_variance',
+                                          synchronization=tf_variables.VariableSynchronization.ON_READ,
+                                          initializer=self.moving_cov_initializer,
+                                          trainable=False,
+                                          aggregation=tf_variables.VariableAggregation.MEAN)
         self.built = True
 
     def call(self, inputs, training=None):
-        #input_shape = K.int_shape(inputs)
-
         _, w, h, c = K.int_shape(inputs)
         bs = K.shape(inputs)[0]
 
@@ -654,14 +660,15 @@ class DecorelationNormalization(Layer):
         x_flat = tf.reshape(x_t, (c, -1))
 
         # Covariance
-        m = tf.reduce_mean(x_flat, axis=1, keep_dims=True)
+        m = tf.reduce_mean(x_flat, axis=1, keepdims=True)
         m = K.in_train_phase(m, self.moving_mean)
         f = x_flat - m
 
         if self.decomposition == 'cholesky':
             def get_inv_sqrt(ff):
-                sqrt = tf.cholesky(ff)
-                inv_sqrt = tf.matrix_triangular_solve(sqrt, tf.eye(c))
+                with tf.device('/cpu:0'):
+                    sqrt = tf.cholesky(ff)
+                inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.eye(c))
                 return sqrt, inv_sqrt
         elif self.decomposition == 'zca':
             def get_inv_sqrt(ff):
@@ -670,12 +677,19 @@ class DecorelationNormalization(Layer):
                 D = tf.diag(tf.pow(S, -0.5))
                 inv_sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
                 D = tf.diag(tf.pow(S, 0.5))
-                sqrt =  tf.matmul(tf.matmul(U, D), U, transpose_b=True)
+                sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
+                return sqrt, inv_sqrt
+        elif self.decomposition == 'pca':
+            def get_inv_sqrt(ff):
+                with tf.device('/cpu:0'):
+                    S, U, _ = tf.svd(ff + tf.eye(c)*self.epsilon, full_matrices=True)
+                D = tf.diag(tf.pow(S, -0.5))
+                inv_sqrt = tf.matmul(D, U, transpose_b=True)
+                D = tf.diag(tf.pow(S, 0.5))
+                sqrt = tf.matmul(D, U, transpose_b=True)
                 return sqrt, inv_sqrt
         else:
             assert False
- 
-
 
         def train():
             ff_apr = tf.matmul(f, f, transpose_b=True) / (tf.cast(bs*w*h, tf.float32) - 1.)
@@ -690,7 +704,7 @@ class DecorelationNormalization(Layer):
             
             if self.renorm:
                 l, l_inv = get_inv_sqrt(ff_apr_shrinked)
-                ff_mov =  (1 - self.epsilon) * self.moving_cov + tf.eye(c) * self.epsilon
+                ff_mov = (1 - self.epsilon) * self.moving_cov + tf.eye(c) * self.epsilon
                 _, l_mov_inverse = get_inv_sqrt(ff_mov)
                 l_ndiff = K.stop_gradient(l)
                 return tf.matmul(tf.matmul(l_mov_inverse, l_ndiff), l_inv)
@@ -928,8 +942,6 @@ class FactorizedConv11(Layer):
         self.activity_regularizer = regularizers.get(activity_regularizer)
         self.kernel_constraint = constraints.get(kernel_constraint)
         self.bias_constraint = constraints.get(bias_constraint)
-
-
 
     def build(self, input_shape):
         if self.data_format == 'channels_first':
@@ -1284,7 +1296,6 @@ class ConditionalConv2D(Layer):
         self.activity_regularizer = regularizers.get(activity_regularizer)
         self.kernel_constraint = constraints.get(kernel_constraint)
         self.bias_constraint = constraints.get(bias_constraint)
-
 
     def build(self, input_shape):
         if self.data_format == 'channels_first':

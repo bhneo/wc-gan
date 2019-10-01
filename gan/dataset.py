@@ -40,7 +40,7 @@ class UGANDataset(object):
         image_batch = self._load_discriminator_data(index)
         return image_batch        
 
-    def display(self, output_batch, input_batch = None, row = None, col = None):
+    def display(self, output_batch, input_batch=None, row=None, col=None):
         row = output_batch.shape[0] if row is None else row
         col = 1 if col is None else col
         batch = output_batch
@@ -117,8 +117,6 @@ class LabeledArrayDataset(ArrayDataset):
         if y_test is not None:
             if len(y_test.shape) == 1:
                 self._Y_test = np.expand_dims(y_test, axis=1)
-
-
 
     def number_of_batches_per_epoch(self):
         return 1000

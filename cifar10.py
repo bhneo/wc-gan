@@ -2,7 +2,7 @@ from tensorflow.python.keras.datasets.cifar import load_batch
 from tensorflow.python.keras.utils.data_utils import get_file
 import os
 import numpy as np
-import tensorflow.keras.backend as K
+from tensorflow.python.keras import backend as K
 
 
 def load_data():

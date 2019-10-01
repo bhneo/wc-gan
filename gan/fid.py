@@ -38,8 +38,8 @@ def create_inception_graph(pth):
     # Creates graph from saved graph_def.pb.
     with tf.gfile.FastGFile( pth, 'rb') as f:
         graph_def = tf.GraphDef()
-        graph_def.ParseFromString( f.read())
-        _ = tf.import_graph_def( graph_def, name='FID_Inception_Net')
+        graph_def.ParseFromString(f.read())
+        _ = tf.import_graph_def(graph_def, name='FID_Inception_Net')
 #-------------------------------------------------------------------------------
 
 
@@ -54,14 +54,15 @@ def _get_inception_layer(sess):
         for o in op.outputs:
             shape = o.get_shape()
             if shape._dims is not None:
-              shape = [s.value for s in shape]
+              shape = o.get_shape().as_list()
               new_shape = []
               for j, s in enumerate(shape):
                 if s == 1 and j == 0:
                   new_shape.append(None)
                 else:
                   new_shape.append(s)
-              o._shape = tf.TensorShape(new_shape)
+              # o._shape = tf.TensorShape(new_shape)
+              o.__dict__['_shape_val'] = tf.TensorShape(new_shape)
     return pool3
 #-------------------------------------------------------------------------------
 
@@ -88,15 +89,15 @@ def get_activations(images, sess, batch_size=50, verbose=False):
         batch_size = d0
     n_batches = d0//batch_size
     n_used_imgs = n_batches*batch_size
-    pred_arr = np.empty((n_used_imgs,2048))
-    for i in tqdm(range(n_batches)):
+    pred_arr = np.empty((n_used_imgs, 2048))
+    for i in tqdm(range(n_batches), ascii=True):
         if verbose:
             print("\rPropagating batch %d/%d" % (i+1, n_batches), end="", flush=True)
         start = i*batch_size
         end = start + batch_size
         batch = images[start:end]
         pred = sess.run(inception_layer, {'FID_Inception_Net/ExpandDims:0': batch})
-        pred_arr[start:end] = pred.reshape(batch_size,-1)
+        pred_arr[start:end] = pred.reshape(batch_size, -1)
     if verbose:
         print(" done")
     return pred_arr

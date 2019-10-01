@@ -116,7 +116,7 @@ class GaussianFromPointsLayer(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-def uniform_init(shape, constant = 4.0, dtype='float32'):
+def uniform_init(shape, constant=4.0, dtype='float32', partition_info=None):
     if len(shape) >= 4:
         stdev = np.sqrt(constant / ((shape[1] ** 2) * (shape[-1] + shape[-2])))
     else:
@@ -192,7 +192,7 @@ def dcblock(x, kernel_size, resample, nfilters, name, norm=BatchNormalization, i
     assert resample in ["UP", "SAME", "DOWN"]
 
     feature_axis = 1 if K.image_data_format() == 'channels_first' else -1
-
+    nfilters = int(nfilters)
     convpath = x
     if resample == "UP":
         convpath = norm(axis=feature_axis, name=name + '.bn')(convpath)
