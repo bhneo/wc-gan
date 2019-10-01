@@ -1,4 +1,5 @@
 from gan.gan import GAN
+import tensorflow as tf
 import tensorflow.keras.backend as K
 
 
@@ -11,7 +12,7 @@ class ProjectiveGAN(GAN):
         super(ProjectiveGAN, self).__init__(**kwargs)
 
     def compile_intermediate_variables(self):
-        self.generator_output = [self.generator(self.generator_input), self.generator_input[1]]
+        self.generator_output = [self.generator(self.generator_input), tf.identity(self.generator_input[1])]
         def shred_disc(inp):
             bs = K.shape(inp[0])[0]
             fp = [inp[0][:(bs/2)], inp[1][:(bs/2)]]

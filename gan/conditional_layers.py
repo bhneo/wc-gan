@@ -778,7 +778,7 @@ class ConditionalConv11(Layer):
         if input_shape[channel_axis] is None:
             raise ValueError('The channel dimension of the inputs '
                              'should be defined. Found `None`.')
-        input_dim = input_shape[0][channel_axis]
+        input_dim = input_shape[0][channel_axis].value
         self.input_dim = input_dim
         kernel_shape = (self.number_of_classes, ) + self.kernel_size + (input_dim, self.filters)
 
@@ -951,7 +951,7 @@ class FactorizedConv11(Layer):
         if input_shape[channel_axis] is None:
             raise ValueError('The channel dimension of the inputs '
                              'should be defined. Found `None`.')
-        input_dim = input_shape[0][channel_axis]
+        input_dim = input_shape[0][channel_axis].value
         self.input_dim = input_dim
 
         class_matrix_shape = (self.number_of_classes, self.filters_emb)
