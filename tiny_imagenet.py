@@ -34,7 +34,7 @@ def load_data():
 #        f.close()
         classes = {name: i for i, name in enumerate(classes)}     
         i = 0
-        for cls in tqdm(os.listdir(os.path.join(path, subdir))):
+        for cls in tqdm(os.listdir(os.path.join(path, subdir)),ascii=True):
             for img in os.listdir(os.path.join(path, subdir, cls, 'images')):
                 name = os.path.join(path, subdir, cls, 'images', img)
                 image = imread(name)
@@ -51,7 +51,7 @@ def load_data():
         Y = None
         i = 0
         for subdir in ('test', ):
-            for img in tqdm(os.listdir(os.path.join(path, subdir, 'images'))):
+            for img in tqdm(os.listdir(os.path.join(path, subdir, 'images')), ascii=True):
                 name = os.path.join(path, subdir, 'images', img)
                 image = imread(name)
                 if len(image.shape) == 2:
