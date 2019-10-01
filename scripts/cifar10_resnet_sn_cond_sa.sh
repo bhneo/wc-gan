@@ -1,8 +1,23 @@
 #!/usr/bin/env bash
 #Maximum achieved at 40k
 name=$(basename $0)
-name=${name%.*}
+base_name=${name%.*}
+
+name="${base_name}_baseline"
 python run.py --name $name --dataset cifar10 --generator_adversarial_objective hinge\
  --discriminator_adversarial_objective hinge  --generator_block_norm d --generator_block_after_norm ufconv\
- --generator_last_norm d --generator_last_after_norm uconv --discriminator_filters 256 --generator_filters 128\
- --discriminator_spectral 1 --lr_decay_schedule linear --number_of_epochs 50 --gan_type PROJECTIVE --filters_emb 4
+ --generator_last_norm d --decomposition cholesky --generator_last_after_norm uconv --discriminator_filters 256 --generator_filters 128\
+ --discriminator_spectral 1 --gradient_penalty_weight 0 --lr_decay_schedule linear --number_of_epochs 50 --gan_type PROJECTIVE --filters_emb 4 --arc res --training_ratio 5 --generator_batch_multiple 2
+
+name="${base_name}_pca"
+python run.py --name $name --dataset cifar10 --generator_adversarial_objective hinge\
+ --discriminator_adversarial_objective hinge  --generator_block_norm d --generator_block_after_norm ufconv\
+ --generator_last_norm d --decomposition pca --generator_last_after_norm uconv --discriminator_filters 256 --generator_filters 128\
+ --discriminator_spectral 1 --gradient_penalty_weight 0 --lr_decay_schedule linear --number_of_epochs 50 --gan_type PROJECTIVE --filters_emb 4 --arc res --training_ratio 5 --generator_batch_multiple 2
+
+name="${base_name}_zca"
+python run.py --name $name --dataset cifar10 --generator_adversarial_objective hinge\
+ --discriminator_adversarial_objective hinge  --generator_block_norm d --generator_block_after_norm ufconv\
+ --generator_last_norm d --decomposition zca --generator_last_after_norm uconv --discriminator_filters 256 --generator_filters 128\
+ --discriminator_spectral 1 --gradient_penalty_weight 0 --lr_decay_schedule linear --number_of_epochs 50 --gan_type PROJECTIVE --filters_emb 4 --arc res --training_ratio 5 --generator_batch_multiple 2
+

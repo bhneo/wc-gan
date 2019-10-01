@@ -28,7 +28,7 @@ def load_data():
     X_train = np.empty((X.shape[0], 48, 48, 3), dtype='uint8')
 
     print ("Resising images...")
-    for i in tqdm(range(X.shape[0])):
+    for i in tqdm(range(X.shape[0]), ascii=True):
         X_train[i] = img_as_ubyte(resize(X[i], (48, 48)))
 
     np.random.seed(0)

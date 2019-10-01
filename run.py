@@ -4,7 +4,7 @@ import sys
 sys.path.append(os.path.abspath('./gan'))
 
 
-from tensorflow.python.keras.optimizer_v2.adam import Adam
+from tensorflow.python.keras.optimizers import Adam
 from gan.dataset import LabeledArrayDataset
 from gan.args import parser_with_default_args
 from gan.train import Trainer
@@ -265,7 +265,7 @@ def main():
     parser.add_argument("--dataset", default='cifar10',
                         choices=['mnist', 'cifar10', 'cifar100', 'fashion-mnist', 'stl10', 'imagenet', 'tiny-imagenet'],
                         help='Dataset to train on')
-    parser.add_argument("--arch", default='res', choices=['res', 'dcgan'], help="Gan architecture resnet or dcgan.")
+    parser.add_argument("--arch", default='dcgan', choices=['res', 'dcgan'], help="Gan architecture resnet or dcgan.")
 
     parser.add_argument("--generator_lr", default=2e-4, type=float, help="Learning rate")
     parser.add_argument("--discriminator_lr", default=2e-4, type=float, help="Learning rate")
@@ -281,7 +281,7 @@ def main():
                              'dropat30 - drop lr 10 times at 30 epoch (any number insdead of 30 allowed).')
 
     parser.add_argument("--generator_spectral", default=0, type=int, help='Use spectral norm in generator.')
-    parser.add_argument("--discriminator_spectral", default=1, type=int, help='Use spectral norm in discriminator.')
+    parser.add_argument("--discriminator_spectral", default=0, type=int, help='Use spectral norm in discriminator.')
  
     parser.add_argument("--fully_diff_spectral", default=0, type=int, help='Fully difirentiable spectral normalization.')
     parser.add_argument("--spectral_iterations", default=1, type=int, help='Number of iteration per spectral update.')
@@ -338,7 +338,7 @@ def main():
                           supervised=args.gan_type is not None)
 
     # args.output_dir = "output/%s_%s_%s" % (args.name, args.phase, time())
-    args.output_dir = "output/%s" % (args.name)
+    args.output_dir = "output/%s_%s" % (args.name, time())
     print(args.output_dir)
     args.checkpoints_dir = args.output_dir
     if not os.path.exists(args.output_dir):

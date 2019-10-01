@@ -8,52 +8,26 @@ import numpy as np
 from tensorflow.python.keras.initializers import RandomNormal
 
 
-# def max_singular_val(w, u, fully_differentiable=False, ip=1, transpose=lambda x: K.transpose(x)):
-#     if not fully_differentiable:
-#         w_ = tf.stop_gradient(w)
-#     else:
-#         w_ = w
-#     u = tf.expand_dims(u, axis=-1)
-#
-#     u_bar = u
-#     # i = tf.constant(ip)
-#     # while i > 0:
-#     #     i -= 1
-#     for _ in range(ip):
-#         v_bar = tf.matmul(transpose(w_), u_bar)
-#         v_bar = tf.nn.l2_normalize(v_bar, axis=(-1, -2))
-#
-#         u_bar_raw = tf.matmul(w_, v_bar)
-#         u_bar = tf.nn.l2_normalize(u_bar_raw, axis=(-1, -2))
-#     sigma = tf.matmul(transpose(u_bar), tf.matmul(w, v_bar))
-#
-#     sigma = tf.squeeze(sigma, axis=-1)
-#     sigma = tf.squeeze(sigma, axis=-1)
-#
-#     u_bar = tf.squeeze(u_bar, axis=-1)
-#     return sigma, u_bar
-
-
 def max_singular_val(w, u, fully_differentiable=False, ip=1):
     if not fully_differentiable:
-        w_ = tf.stop_gradient(w)
+        w_ = K.stop_gradient(w)
     else:
         w_ = w
-    u = tf.expand_dims(u, axis=-1)
+    u = K.expand_dims(u, axis=-1)
 
     u_bar = u
     for _ in range(ip):
-        v_bar = tf.matmul(w_, u_bar, transpose_a=True)
-        v_bar = tf.nn.l2_normalize(v_bar, axis=(-1, -2))
+        v_bar = tf.matmul(w_, u_bar , transpose_a=True)
+        v_bar = K.l2_normalize(v_bar, axis=(-1, -2))
 
         u_bar_raw = tf.matmul(w_, v_bar)
-        u_bar = tf.nn.l2_normalize(u_bar_raw, axis=(-1, -2))
+        u_bar = K.l2_normalize(u_bar_raw, axis=(-1, -2))
     sigma = tf.matmul(u_bar, tf.matmul(w, v_bar), transpose_a=True)
 
-    sigma = tf.squeeze(sigma, axis=-1)
-    sigma = tf.squeeze(sigma, axis=-1)
+    sigma = K.squeeze(sigma, axis=-1)
+    sigma = K.squeeze(sigma, axis=-1)
 
-    u_bar = tf.squeeze(u_bar, axis=-1)
+    u_bar = K.squeeze(u_bar, axis=-1)
     return sigma, u_bar
 
 
@@ -61,22 +35,22 @@ def max_singular_val_for_convolution(w, u, fully_differentiable=False, ip=1, pad
                                      strides=(1, 1), data_format='channels_last'):
     assert ip >= 1
     if not fully_differentiable:
-        w_ = tf.stop_gradient(w)
+        w_ = K.stop_gradient(w)
     else:
         w_ = w
 
     u_bar = u
     for _ in range(ip):
-        v_bar = tf.nn.conv2d(u_bar, w_, strides=strides, data_format=data_format, padding=padding)
-        v_bar = tf.nn.l2_normalize(v_bar)
+        v_bar = K.conv2d(u_bar, w_, strides=strides, data_format=data_format, padding=padding)
+        v_bar = K.l2_normalize(v_bar)
 
-        u_bar_raw = tf.nn.conv2d_transpose(v_bar, w_, output_shape=K.int_shape(u),
+        u_bar_raw = K.conv2d_transpose(v_bar, w_, output_shape=K.int_shape(u),
                                        strides=strides, data_format=data_format, padding=padding)
-        u_bar = tf.nn.l2_normalize(u_bar_raw)
+        u_bar = K.l2_normalize(u_bar_raw)
 
-    u_bar_raw_diff = tf.nn.conv2d_transpose(v_bar, w, output_shape=K.int_shape(u),
+    u_bar_raw_diff = K.conv2d_transpose(v_bar, w, output_shape=K.int_shape(u),
                                         strides=strides, data_format=data_format, padding=padding)
-    sigma = tf.reduce_sum(u_bar * u_bar_raw_diff)
+    sigma = K.sum(u_bar * u_bar_raw_diff)
     return sigma, u_bar
 
 
@@ -134,24 +108,6 @@ class SNConv2D(Conv2D):
         self.kernel = kernel
 
         return outputs
-
-
-def test_sn():
-    SN = SNConv2D(kernel_size=(3,3), filters=64, padding='same')
-
-    @tf.function
-    def do_sn(data):
-        out = SN(data)
-        return out
-
-    data = tf.random.normal([128, 16, 16, 64])
-    out = do_sn(data)
-    print(tf.reduce_mean(SN.u))
-    print(tf.reduce_mean(SN.u))
-    for _ in range(100):
-        out = do_sn(out)
-    print(tf.reduce_mean(SN.u))
-
 
 
 class SNDense(Dense):

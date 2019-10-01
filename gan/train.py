@@ -6,20 +6,11 @@ import pylab as plt
 from tensorflow.python.keras import backend as K
 assert K.image_data_format() == 'channels_last', "Backend should be tensorflow and data_format channel_last"
 import tensorflow as tf
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+session = tf.Session(config=config)
+K.set_session(session)
 from tqdm import tqdm
-
-
-# gpus = tf.config.experimental.list_physical_devices('GPU')
-# if gpus:
-#     try:
-#         # Currently, memory growth needs to be the same across GPUs
-#         for gpu in gpus:
-#             tf.config.experimental.set_memory_growth(gpu, True)
-#         logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-#         print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-#     except RuntimeError as e:
-#         # Memory growth must be set before GPUs have been initialized
-#         print(e)
 
 
 class Trainer(object):
@@ -59,7 +50,7 @@ class Trainer(object):
             batch = self.dataset.next_generator_sample_test()
         else:
             batch = self.dataset.next_generator_sample()
-        gen_images = self.generate_op(batch, False)
+        gen_images = self.generate_op(batch + [False])
         image = self.dataset.display(gen_images, batch)
         title = "epoch_{}.png".format(str(self.current_epoch).zfill(3))
         if not os.path.exists(self.output_dir):
@@ -86,7 +77,7 @@ class Trainer(object):
         for j in range(self.training_ratio):
             discriminator_batch = self.dataset.next_discriminator_sample()
             generator_batch = self.dataset.next_generator_sample()
-            loss = self.discriminator_train_op(discriminator_batch, generator_batch)
+            loss = self.discriminator_train_op(discriminator_batch + generator_batch + [True])
             discriminator_loss_list.append(loss)
 
         if self.concatenate_generator_batches:
@@ -97,12 +88,12 @@ class Trainer(object):
                 generator_batch = [np.concatenate(l, axis=0) for l in zip(*generator_batch)]
             else:
                 generator_batch = self.dataset.next_generator_sample()
-            loss = self.generator_train_op(generator_batch)
+            loss = self.generator_train_op(generator_batch + [True])
             generator_loss_list.append(loss)
         else:
             for j in range(self.gen_batch_mul):
                 generator_batch = self.dataset.next_generator_sample()
-                loss = self.generator_train_op(generator_batch)
+                loss = self.generator_train_op(generator_batch + [True])
                 generator_loss_list.append(loss)
 
     def train_one_epoch(self, validation_epoch=False):
@@ -128,17 +119,18 @@ class Trainer(object):
                 validation_loss_list = []
                 for _ in tqdm(range(int(self.dataset.number_of_batches_per_validation())), ascii=True):
                     generator_batch = self.dataset.next_generator_sample_test()
-                    loss = self.validate_op(generator_batch)
+                    loss = self.validate_op(generator_batch + [True])
                     validation_loss_list.append(loss)
-
                 val_loss_str, d_loss_str = self.gan.get_losses_as_string(np.mean(np.array(validation_loss_list), axis=0),
-                                                                         np.mean(np.array(discriminator_loss_list), axis=0))
+                                                                      np.mean(np.array(discriminator_loss_list), axis=0))
                 print(val_loss_str.replace('Generator loss', 'Validation loss'))
 
         print("Discriminator lr %s" % K.get_value(self.gan.discriminator_optimizer.lr))
         print("Generator lr %s" % K.get_value(self.gan.generator_optimizer.lr))
         
     def train(self):
+        init = tf.global_variables_initializer()
+        K.get_session().run(init)
         while self.current_epoch < self.last_epoch:
             if (self.current_epoch + 1) % self.display_ratio == 0:
                 self.save_generated_images()
