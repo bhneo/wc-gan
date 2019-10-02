@@ -197,7 +197,7 @@ def get_generator_params(args):
     params.last_after_norm = args.generator_last_after_norm
 
     params.decomposition = args.decomposition
-    params.m = args.m
+    params.group = args.group
 
     params.spectral = args.generator_spectral
     params.fully_diff_spectral = args.fully_diff_spectral
@@ -310,7 +310,7 @@ def main():
                              "ucs - uncoditional shift and scale. ucconv - condcoloring. ufconv - condcoloring + sa."
                              "n - None.")
     parser.add_argument("--decomposition", default='pca', choices=['cholesky', 'zca', 'pca'], help='')
-    parser.add_argument("--m", default=0, type=int, help='')
+    parser.add_argument("--group", default=1, type=int, help='')
     parser.add_argument("--generator_batch_multiple", default=2, type=int,
                         help="Size of the generator batch, multiple of batch_size.")
     parser.add_argument("--generator_concat_cls", default=0, type=int, help='Concat labels to noise in generator.')

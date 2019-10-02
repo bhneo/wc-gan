@@ -614,7 +614,7 @@ class DecorelationNormalization(Layer):
                  axis=-1,
                  momentum=0.99,
                  epsilon=1e-3,
-                 m_per_group=0,
+                 group=1,
                  decomposition='cholesky',
                  renorm=False,
                  moving_mean_initializer='zeros',
@@ -625,7 +625,7 @@ class DecorelationNormalization(Layer):
         self.supports_masking = True
         self.momentum = momentum
         self.epsilon = epsilon
-        self.m_per_group = m_per_group
+        self.group = group
         self.moving_mean_initializer = initializers.get(moving_mean_initializer)
         self.moving_cov_initializer = initializers.get(moving_cov_initializer)
         self.axis = axis
@@ -639,9 +639,8 @@ class DecorelationNormalization(Layer):
                              'input tensor should have a defined dimension '
                              'but the layer received an input with shape ' +
                              str(input_shape) + '.')
-        if self.m_per_group == 0:
-            self.m_per_group = dim
-        self.groups = dim // self.m_per_group
+
+        self.m_per_group = dim // self.group
         assert (dim % self.m_per_group == 0), 'm_per_group incorrect!'
 
         self.moving_mean = self.add_weight(shape=(dim, 1),
@@ -650,13 +649,13 @@ class DecorelationNormalization(Layer):
                                            initializer=self.moving_mean_initializer,
                                            trainable=False,
                                            aggregation=tf_variables.VariableAggregation.MEAN)
-        self.moving_covs = self.add_weight(shape=(self.groups, dim, dim),
+        self.moving_covs = self.add_weight(shape=(self.group, self.m_per_group, self.m_per_group),
                                            name='moving_variance',
                                            synchronization=tf_variables.VariableSynchronization.ON_READ,
                                            trainable=False,
                                            aggregation=tf_variables.VariableAggregation.MEAN)
         moving_convs = []
-        for i in range(self.groups):
+        for i in range(self.group):
             moving_conv = tf.expand_dims(tf.eye(self.m_per_group), 0)
             moving_convs.append(moving_conv)
 
@@ -689,18 +688,18 @@ class DecorelationNormalization(Layer):
             def get_inv_sqrt(ff, m_per_group):
                 with tf.device('/cpu:0'):
                     S, U, _ = tf.svd(ff + tf.eye(m_per_group)*self.epsilon, full_matrices=True)
-                D = tf.diag(tf.pow(S, -0.5))
+                D = tf.linalg.diag(tf.pow(S, -0.5))
                 inv_sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
-                D = tf.diag(tf.pow(S, 0.5))
+                D = tf.linalg.diag(tf.pow(S, 0.5))
                 sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
                 return sqrt, inv_sqrt
         elif self.decomposition == 'pca':
             def get_inv_sqrt(ff, m_per_group):
                 with tf.device('/cpu:0'):
                     S, U, _ = tf.svd(ff + tf.eye(m_per_group)*self.epsilon, full_matrices=True)
-                D = tf.diag(tf.pow(S, -0.5))
+                D = tf.linalg.diag(tf.pow(S, -0.5))
                 inv_sqrt = tf.matmul(D, U, transpose_b=True)
-                D = tf.diag(tf.pow(S, 0.5))
+                D = tf.linalg.diag(tf.pow(S, 0.5))
                 sqrt = tf.matmul(D, U, transpose_b=True)
                 return sqrt, inv_sqrt
         else:
@@ -708,7 +707,7 @@ class DecorelationNormalization(Layer):
 
         def train():
             ff_aprs = []
-            for i in range(self.groups):
+            for i in range(self.group):
                 start_index = i * self.m_per_group
                 end_index = np.min(((i + 1) * self.m_per_group, c))
                 centered = f[start_index:end_index, :]
@@ -738,11 +737,11 @@ class DecorelationNormalization(Layer):
             return get_inv_sqrt(ff_aprs, self.m_per_group)[1]
 
         def test():
-            ff_mov = (1 - self.epsilon) * self.moving_cov + tf.eye(c) * self.epsilon
+            ff_mov = (1 - self.epsilon) * self.moving_covs + tf.eye(self.m_per_group) * self.epsilon
             return get_inv_sqrt(ff_mov, self.m_per_group)[1]
         
         inv_sqrt = K.in_train_phase(train, test)
-        f = tf.reshape(f, [self.groups, self.m_per_group, -1])
+        f = tf.reshape(f, [self.group, self.m_per_group, -1])
         f_hat = tf.matmul(inv_sqrt, f)
 
         decorelated = K.reshape(f_hat, [c, bs, w, h])
