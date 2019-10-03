@@ -634,7 +634,7 @@ class DecorelationNormalization(Layer):
         self.decomposition = decomposition
         self.iter_num = iter_num
 
-    def cov_initializer(self, shape, dtype=tf.float32, partitional_info=None):
+    def cov_initializer(self, shape, dtype=tf.float32, partition_info=None):
         moving_convs = []
         for i in range(shape[0]):
             moving_conv = tf.expand_dims(tf.eye(shape[1], dtype=dtype), 0)
@@ -716,11 +716,11 @@ class DecorelationNormalization(Layer):
 
                 projection = tf.eye(m_per_group)
                 projection = tf.expand_dims(projection, 0)
-                projection = tf.tile(projection, [self.groups, 1, 1])
+                projection = tf.tile(projection, [self.group, 1, 1])
                 for i in range(self.iter_num):
                     projection = (3 * projection - projection * projection * projection * sigma_norm) / 2
 
-                return projection / tf.sqrt(trace)
+                return None, projection / tf.sqrt(trace)
         else:
             assert False
 
