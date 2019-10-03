@@ -616,11 +616,12 @@ class DecorelationNormalization(Layer):
                  epsilon=1e-3,
                  group=1,
                  decomposition='cholesky',
+                 iter_num=5,
                  renorm=False,
                  moving_mean_initializer='zeros',
                  moving_cov_initializer='identity',
                  **kwargs):
-        assert decomposition in ['cholesky', 'zca', 'pca']
+        assert decomposition in ['cholesky', 'zca', 'pca', 'iter_norm']
         super(DecorelationNormalization, self).__init__(**kwargs)
         self.supports_masking = True
         self.momentum = momentum
@@ -631,8 +632,9 @@ class DecorelationNormalization(Layer):
         self.axis = axis
         self.renorm = renorm
         self.decomposition = decomposition
+        self.iter_num = iter_num
 
-    def cov_initializer(self, shape, dtype=tf.float32):
+    def cov_initializer(self, shape, dtype=tf.float32, partitional_info=None):
         moving_convs = []
         for i in range(shape[0]):
             moving_conv = tf.expand_dims(tf.eye(shape[1], dtype=dtype), 0)
@@ -705,6 +707,20 @@ class DecorelationNormalization(Layer):
                 D = tf.linalg.diag(tf.pow(S, 0.5))
                 sqrt = tf.matmul(D, U, transpose_b=True)
                 return sqrt, inv_sqrt
+        elif self.decomposition == 'iter_norm':
+            def get_inv_sqrt(ff, m_per_group):
+                trace = tf.linalg.trace(ff)
+                trace = tf.expand_dims(trace, [-1])
+                trace = tf.expand_dims(trace, [-1])
+                sigma_norm = ff / trace
+
+                projection = tf.eye(m_per_group)
+                projection = tf.expand_dims(projection, 0)
+                projection = tf.tile(projection, [self.groups, 1, 1])
+                for i in range(self.iter_num):
+                    projection = (3 * projection - projection * projection * projection * sigma_norm) / 2
+
+                return projection / tf.sqrt(trace)
         else:
             assert False
 

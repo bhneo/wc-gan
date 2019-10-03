@@ -198,6 +198,7 @@ def get_generator_params(args):
 
     params.decomposition = args.decomposition
     params.group = args.group
+    params.iter_num = args.iter_num
 
     params.spectral = args.generator_spectral
     params.fully_diff_spectral = args.fully_diff_spectral
@@ -309,8 +310,9 @@ def main():
                         help="Layer after block normalization. ccs - conditional shift and scale."
                              "ucs - uncoditional shift and scale. ucconv - condcoloring. ufconv - condcoloring + sa."
                              "n - None.")
-    parser.add_argument("--decomposition", default='cholesky', choices=['cholesky', 'zca', 'pca'], help='')
+    parser.add_argument("--decomposition", default='cholesky', choices=['cholesky', 'zca', 'pca', 'iter'], help='')
     parser.add_argument("--group", default=1, type=int, help='')
+    parser.add_argument("--iter_num", default=5, type=int, help='')
     parser.add_argument("--generator_batch_multiple", default=2, type=int,
                         help="Size of the generator batch, multiple of batch_size.")
     parser.add_argument("--generator_concat_cls", default=0, type=int, help='Concat labels to noise in generator.')
