@@ -660,7 +660,7 @@ class DecorelationNormalization(Layer):
             moving_convs.append(moving_conv)
 
         moving_convs = tf.concat(moving_convs, 0)
-        self.moving_covs.assign(moving_convs)
+        self.moving_covs = self.moving_covs.assign(moving_convs)
 
         self.built = True
 
@@ -681,8 +681,8 @@ class DecorelationNormalization(Layer):
         if self.decomposition == 'cholesky':
             def get_inv_sqrt(ff, m_per_group):
                 with tf.device('/cpu:0'):
-                    sqrt = tf.cholesky(ff)
-                inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.eye(m_per_group))
+                    sqrt = tf.linalg.cholesky(ff)
+                inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.tile(tf.expand_dims(tf.eye(m_per_group), 0), [self.group, 1, 1]))
                 return sqrt, inv_sqrt
         elif self.decomposition == 'zca':
             def get_inv_sqrt(ff, m_per_group):
@@ -711,13 +711,13 @@ class DecorelationNormalization(Layer):
                 start_index = i * self.m_per_group
                 end_index = np.min(((i + 1) * self.m_per_group, c))
                 centered = f[start_index:end_index, :]
-                ff_apr = tf.matmul(centered, centered, transpose_b=True) / (tf.cast(bs * w * h, tf.float32) - 1.)
-                ff_apr_shrinked = (1 - self.epsilon) * ff_apr + tf.eye(end_index - start_index) * self.epsilon
-                ff_apr_shrinked = tf.expand_dims(ff_apr_shrinked, 0)
-                ff_aprs.append(ff_apr_shrinked)
+                ff_apr = tf.matmul(centered, centered, transpose_b=True)
+                ff_apr = tf.expand_dims(ff_apr, 0)
+                ff_aprs.append(ff_apr)
 
             ff_aprs = tf.concat(ff_aprs, 0)
             ff_aprs /= (tf.cast(bs * w * h, tf.float32) - 1.)
+            ff_aprs = (1 - self.epsilon) * ff_aprs + tf.expand_dims(tf.eye(self.m_per_group) * self.epsilon, 0)
 
             self.add_update([K.moving_average_update(self.moving_mean,
                                                      m,
@@ -726,20 +726,20 @@ class DecorelationNormalization(Layer):
                                                      ff_aprs,
                                                      self.momentum)],
                              inputs)
-            
+
             if self.renorm:
                 l, l_inv = get_inv_sqrt(ff_aprs, self.m_per_group)
                 ff_mov = (1 - self.epsilon) * self.moving_covs + tf.eye(self.m_per_group) * self.epsilon
                 _, l_mov_inverse = get_inv_sqrt(ff_mov, self.m_per_group)
                 l_ndiff = K.stop_gradient(l)
                 return tf.matmul(tf.matmul(l_mov_inverse, l_ndiff), l_inv)
-               
+
             return get_inv_sqrt(ff_aprs, self.m_per_group)[1]
 
         def test():
             ff_mov = (1 - self.epsilon) * self.moving_covs + tf.eye(self.m_per_group) * self.epsilon
             return get_inv_sqrt(ff_mov, self.m_per_group)[1]
-        
+
         inv_sqrt = K.in_train_phase(train, test)
         f = tf.reshape(f, [self.group, self.m_per_group, -1])
         f_hat = tf.matmul(inv_sqrt, f)
@@ -759,6 +759,158 @@ class DecorelationNormalization(Layer):
         }
         base_config = super(DecorelationNormalization, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+def test_dbn():
+    # tf.enable_eager_execution()
+    inputs = tf.keras.layers.Input([8, 8, 16])
+    data = np.random.normal(0, 1, [128, 8, 8, 16])
+    # data = tf.random.normal([128, 8, 8, 16])
+    # K.set_learning_phase(1)
+    decor1 = DecorelationNormalization(group=1)
+    # decor2 = DecorelationNormalizationOri(group=1)
+    out1 = decor1(inputs)
+    # out2 = decor2(inputs)
+    out1 = tf.reduce_mean(out1)
+    # out2 = tf.reduce_mean(out2)
+    # print(out1)
+    # print(out2)
+    # print()
+    sess = K.get_session()
+    sess.run(tf.global_variables_initializer())
+    K.set_learning_phase(1)
+    # outputs1, outputs2 = sess.run([out1, out2], feed_dict={inputs: data})
+    outputs1 = sess.run([out1], feed_dict={inputs: data})
+
+    print(np.mean(outputs1))
+    # print(np.mean(outputs2))
+
+# class DecorelationNormalization(Layer):
+#     def __init__(self,
+#                  axis=-1,
+#                  momentum=0.99,
+#                  epsilon=1e-3,
+#                  group=1,
+#                  decomposition='cholesky',
+#                  renorm=False,
+#                  moving_mean_initializer='zeros',
+#                  moving_cov_initializer='identity',
+#                  **kwargs):
+#         assert decomposition in ['cholesky', 'zca', 'pca']
+#         super(DecorelationNormalization, self).__init__(**kwargs)
+#         self.supports_masking = True
+#         self.momentum = momentum
+#         self.epsilon = epsilon
+#         self.moving_mean_initializer = initializers.get(moving_mean_initializer)
+#         self.moving_cov_initializer = initializers.get(moving_cov_initializer)
+#         self.axis = axis
+#         self.renorm = renorm
+#         self.decomposition = decomposition
+#
+#     def build(self, input_shape):
+#         dim = input_shape.as_list()[self.axis]
+#         if dim is None:
+#             raise ValueError('Axis ' + str(self.axis) + ' of '
+#                                                         'input tensor should have a defined dimension '
+#                                                         'but the layer received an input with shape ' +
+#                              str(input_shape) + '.')
+#         self.moving_mean = self.add_weight(shape=(dim, 1),
+#                                            name='moving_mean',
+#                                            synchronization=tf_variables.VariableSynchronization.ON_READ,
+#                                            initializer=self.moving_mean_initializer,
+#                                            trainable=False,
+#                                            aggregation=tf_variables.VariableAggregation.MEAN)
+#         self.moving_cov = self.add_weight(shape=(dim, dim),
+#                                           name='moving_variance',
+#                                           synchronization=tf_variables.VariableSynchronization.ON_READ,
+#                                           initializer=self.moving_cov_initializer,
+#                                           trainable=False,
+#                                           aggregation=tf_variables.VariableAggregation.MEAN)
+#         self.built = True
+#
+#     def call(self, inputs, training=None):
+#         _, w, h, c = K.int_shape(inputs)
+#         bs = K.shape(inputs)[0]
+#
+#         x_t = tf.transpose(inputs, (3, 0, 1, 2))
+#
+#         # BxCxHxW -> CxB*H*W
+#         x_flat = tf.reshape(x_t, (c, -1))
+#
+#         # Covariance
+#         m = tf.reduce_mean(x_flat, axis=1, keepdims=True)
+#         m = K.in_train_phase(m, self.moving_mean)
+#         f = x_flat - m
+#
+#         if self.decomposition == 'cholesky':
+#             def get_inv_sqrt(ff):
+#                 with tf.device('/cpu:0'):
+#                     sqrt = tf.cholesky(ff)
+#                 inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.eye(c))
+#                 return sqrt, inv_sqrt
+#         elif self.decomposition == 'zca':
+#             def get_inv_sqrt(ff):
+#                 with tf.device('/cpu:0'):
+#                     S, U, _ = tf.svd(ff + tf.eye(c) * self.epsilon, full_matrices=True)
+#                 D = tf.diag(tf.pow(S, -0.5))
+#                 inv_sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
+#                 D = tf.diag(tf.pow(S, 0.5))
+#                 sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
+#                 return sqrt, inv_sqrt
+#         elif self.decomposition == 'pca':
+#             def get_inv_sqrt(ff):
+#                 with tf.device('/cpu:0'):
+#                     S, U, _ = tf.svd(ff + tf.eye(c) * self.epsilon, full_matrices=True)
+#                 D = tf.diag(tf.pow(S, -0.5))
+#                 inv_sqrt = tf.matmul(D, U, transpose_b=True)
+#                 D = tf.diag(tf.pow(S, 0.5))
+#                 sqrt = tf.matmul(D, U, transpose_b=True)
+#                 return sqrt, inv_sqrt
+#         else:
+#             assert False
+#
+#         def train():
+#             ff_apr = tf.matmul(f, f, transpose_b=True) / (tf.cast(bs * w * h, tf.float32) - 1.)
+#             self.add_update([K.moving_average_update(self.moving_mean,
+#                                                      m,
+#                                                      self.momentum),
+#                              K.moving_average_update(self.moving_cov,
+#                                                      ff_apr,
+#                                                      self.momentum)],
+#                             inputs)
+#             ff_apr_shrinked = (1 - self.epsilon) * ff_apr + tf.eye(c) * self.epsilon
+#
+#             if self.renorm:
+#                 l, l_inv = get_inv_sqrt(ff_apr_shrinked)
+#                 ff_mov = (1 - self.epsilon) * self.moving_cov + tf.eye(c) * self.epsilon
+#                 _, l_mov_inverse = get_inv_sqrt(ff_mov)
+#                 l_ndiff = K.stop_gradient(l)
+#                 return tf.matmul(tf.matmul(l_mov_inverse, l_ndiff), l_inv)
+#
+#             return get_inv_sqrt(ff_apr_shrinked)[1]
+#
+#         def test():
+#             ff_mov = (1 - self.epsilon) * self.moving_cov + tf.eye(c) * self.epsilon
+#             return get_inv_sqrt(ff_mov)[1]
+#
+#         inv_sqrt = K.in_train_phase(train, test)
+#         f_hat = tf.matmul(inv_sqrt, f)
+#
+#         decorelated = K.reshape(f_hat, [c, bs, w, h])
+#         decorelated = tf.transpose(decorelated, [1, 2, 3, 0])
+#
+#         return decorelated
+#
+#     def get_config(self):
+#         config = {
+#             'axis': self.axis,
+#             'momentum': self.momentum,
+#             'epsilon': self.epsilon,
+#             'moving_mean_initializer': initializers.serialize(self.moving_mean_initializer),
+#             'moving_variance_initializer': initializers.serialize(self.moving_cov_initializer)
+#         }
+#         base_config = super(DecorelationNormalization, self).get_config()
+#         return dict(list(base_config.items()) + list(config.items()))
 
 
 class ConditionalConv11(Layer):

@@ -309,7 +309,7 @@ def main():
                         help="Layer after block normalization. ccs - conditional shift and scale."
                              "ucs - uncoditional shift and scale. ucconv - condcoloring. ufconv - condcoloring + sa."
                              "n - None.")
-    parser.add_argument("--decomposition", default='pca', choices=['cholesky', 'zca', 'pca'], help='')
+    parser.add_argument("--decomposition", default='cholesky', choices=['cholesky', 'zca', 'pca'], help='')
     parser.add_argument("--group", default=1, type=int, help='')
     parser.add_argument("--generator_batch_multiple", default=2, type=int,
                         help="Size of the generator batch, multiple of batch_size.")
