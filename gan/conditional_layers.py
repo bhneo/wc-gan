@@ -632,6 +632,15 @@ class DecorelationNormalization(Layer):
         self.renorm = renorm
         self.decomposition = decomposition
 
+    def cov_initializer(self, shape, dtype=tf.float32):
+        moving_convs = []
+        for i in range(shape[0]):
+            moving_conv = tf.expand_dims(tf.eye(shape[1], dtype=dtype), 0)
+            moving_convs.append(moving_conv)
+
+        moving_convs = tf.concat(moving_convs, 0)
+        return moving_convs
+
     def build(self, input_shape):
         dim = input_shape.as_list()[self.axis]
         if dim is None:
@@ -652,15 +661,9 @@ class DecorelationNormalization(Layer):
         self.moving_covs = self.add_weight(shape=(self.group, self.m_per_group, self.m_per_group),
                                            name='moving_variance',
                                            synchronization=tf_variables.VariableSynchronization.ON_READ,
+                                           initializer=self.cov_initializer,
                                            trainable=False,
                                            aggregation=tf_variables.VariableAggregation.MEAN)
-        moving_convs = []
-        for i in range(self.group):
-            moving_conv = tf.expand_dims(tf.eye(self.m_per_group), 0)
-            moving_convs.append(moving_conv)
-
-        moving_convs = tf.concat(moving_convs, 0)
-        self.moving_covs = self.moving_covs.assign(moving_convs)
 
         self.built = True
 
