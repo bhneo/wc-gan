@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import pylab as plt
+from functools import partial
 from tensorflow.python.keras import backend as K
 assert K.image_data_format() == 'channels_last', "Backend should be tensorflow and data_format channel_last"
 import tensorflow as tf
@@ -108,10 +109,12 @@ class Trainer(object):
                 print(err)
 
         g_loss_str, d_loss_str = self.gan.get_losses_as_string(np.mean(np.array(generator_loss_list), axis=0),
-                                                               np.mean(np.array(discriminator_loss_list), axis=0))
+                                                               np.mean(np.array(discriminator_loss_list), axis=0),
+                                                               tb_writer=self.tb_writer,
+                                                               step=self.current_epoch)
         print(g_loss_str)
         print(d_loss_str)
-        
+
         if hasattr(self.dataset, 'next_generator_sample_test') and validation_epoch:
             batches = int(self.dataset.number_of_batches_per_validation())
             if batches > 0:
@@ -122,15 +125,19 @@ class Trainer(object):
                     loss = self.validate_op(generator_batch + [True])
                     validation_loss_list.append(loss)
                 val_loss_str, d_loss_str = self.gan.get_losses_as_string(np.mean(np.array(validation_loss_list), axis=0),
-                                                                      np.mean(np.array(discriminator_loss_list), axis=0))
+                                                                         np.mean(np.array(discriminator_loss_list), axis=0))
                 print(val_loss_str.replace('Generator loss', 'Validation loss'))
 
         print("Discriminator lr %s" % K.get_value(self.gan.discriminator_optimizer.lr))
         print("Generator lr %s" % K.get_value(self.gan.generator_optimizer.lr))
         
     def train(self):
+        sess = K.get_session()
+        self.merged = tf.summary.merge_all()
+        self.tb_writer = tf.summary.FileWriter(self.output_dir, sess.graph)
+        self.at_store_checkpoint_hook = partial(self.at_store_checkpoint_hook, tb_writer=self.tb_writer, step=0)
         init = tf.global_variables_initializer()
-        K.get_session().run(init)
+        sess.run(init)
         while self.current_epoch < self.last_epoch:
             if (self.current_epoch + 1) % self.display_ratio == 0:
                 self.save_generated_images()
@@ -138,6 +145,7 @@ class Trainer(object):
             self.current_epoch += 1
             if (self.current_epoch - 1) % self.checkpoint_ratio == 0:
                 self.make_checkpoint()
+            self.at_store_checkpoint_hook = partial(self.at_store_checkpoint_hook, step=self.current_epoch)
 
         if (self.current_epoch + 1) % self.display_ratio == 0:
             self.save_generated_images()
