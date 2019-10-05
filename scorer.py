@@ -3,6 +3,7 @@ from gan.fid import calculate_fid_given_arrays
 from gan.dataset import UGANDataset
 import numpy as np
 from tqdm import tqdm
+import tensorflow as tf
 import tensorflow.keras.backend as K
 from skimage.io import imsave
 import os
@@ -44,7 +45,7 @@ def save_images(dir_name, images, labels):
 
 
 def compute_scores(epoch, image_shape, generator, dataset, images_inception=50000, images_fid=10000,
-                   log_file=None, cache_file='mnist_fid.npz', additional_info=""):
+                   log_file=None, cache_file='mnist_fid.npz', additional_info="", tb_writer=None, step=0):
     compute_inception = images_inception != 0
     compute_fid = images_fid != 0
     number_of_images = max(images_inception, images_fid)
@@ -85,17 +86,27 @@ def compute_scores(epoch, image_shape, generator, dataset, images_inception=5000
               to_rgb(images), labels if conditional else None)
 
     if compute_inception:
-        str = "INCEPTION SCORE: %s, %s" % get_inception_score(to_rgb(images[:images_inception]))
+        mean, std = get_inception_score(to_rgb(images[:images_inception]))
+        str = "INCEPTION SCORE: %s, %s" % (mean, std)
         print(str)
+        if tb_writer and isinstance(tb_writer, tf.summary.FileWriter):
+            summary = tf.Summary()
+            summary.value.add(tag='IS', simple_value=mean)
+            tb_writer.add_summary(summary, step)
         if log_file is not None:
             with open(log_file, 'a') as f:
                 print(("Epoch %s " % (epoch, )) + str, file=f) #+ " " + additional_info
 
     if compute_fid:
         true_images = 127.5 * dataset._X_test + 127.5
-        str = "FID SCORE: %s" % calculate_fid_given_arrays([to_rgb(true_images)[:images_fid],
+        fid = calculate_fid_given_arrays([to_rgb(true_images)[:images_fid],
                                                             to_rgb(images)[:images_fid]], cache_file=cache_file)
+        str = "FID SCORE: %s" % fid
         print(str)
+        if tb_writer and isinstance(tb_writer, tf.summary.FileWriter):
+            summary = tf.Summary()
+            summary.value.add(tag='FID', simple_value=fid)
+            tb_writer.add_summary(summary, step)
         if log_file is not None:
             with open(log_file, 'a') as f:
                 print(("Epoch %s " % (epoch, )) + str, file=f) #+ " " + additional_info

@@ -224,7 +224,7 @@ class GAN(object):
 
         updates += self.collect_updates(self.discriminator)
         updates += self.collect_updates(self.generator)
-        print (updates) 
+        print(updates)
         updates += self.generator_optimizer.get_updates(params=self.generator.trainable_weights, loss=sum(loss_list))
 
         lr_update = (self.lr_decay_schedule_generator(self.generator_optimizer.iterations) *
@@ -247,7 +247,7 @@ class GAN(object):
         updates += self.collect_updates(self.discriminator)
         updates += self.collect_updates(self.generator)
 
-        print (updates)
+        print(updates)
         updates += self.discriminator_optimizer.get_updates(params=self.discriminator.trainable_weights, loss=sum(loss_list))
 
         inputs = self.discriminator_input + self.additional_inputs_for_discriminator_train +\
@@ -273,12 +273,19 @@ class GAN(object):
     def get_discriminator(self):
         return self.discriminator
 
-    def get_losses_as_string(self, generator_losses, discriminator_losses):
-        def combine(name_list, losses):
+    def get_losses_as_string(self, generator_losses, discriminator_losses, tb_writer=None, step=0):
+        def combine(name_list, losses, prefix=''):
             losses = np.array(losses)
             if len(losses.shape) == 0:
                 losses = losses.reshape((1, ))
-            return '; '.join([name + ' = ' + str(loss) for name, loss in zip(name_list, losses)])
-        generator_loss_str = combine(['Generator loss'] + self.generator_metric_names, generator_losses)
-        discriminator_loss_str = combine(['Disciminator loss'] + self.discriminator_metric_names, discriminator_losses)
+            result = []
+            for name, loss in zip(name_list, losses):
+                result.append(name + ' = ' + str(loss))
+                if tb_writer and isinstance(tb_writer, tf.summary.FileWriter):
+                    summary = tf.Summary()
+                    summary.value.add(tag=prefix + ' ' + name, simple_value=loss)
+                    tb_writer.add_summary(summary, step)
+            return '; '.join(result)
+        generator_loss_str = combine(['total loss'] + self.generator_metric_names, generator_losses, 'Generator')
+        discriminator_loss_str = combine(['total loss'] + self.discriminator_metric_names, discriminator_losses, 'Disciminator')
         return generator_loss_str, discriminator_loss_str
