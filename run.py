@@ -199,6 +199,7 @@ def get_generator_params(args):
     params.decomposition = args.decomposition
     params.group = args.group
     params.iter_num = args.iter_num
+    params.instance_norm = args.instance_norm
 
     params.spectral = args.generator_spectral
     params.fully_diff_spectral = args.fully_diff_spectral
@@ -240,6 +241,11 @@ def get_discriminator_params(args):
 
     params.norm = args.discriminator_norm
     params.after_norm = args.discriminator_after_norm
+
+    params.decomposition = args.decomposition
+    params.group = args.group
+    params.iter_num = args.iter_num
+    params.instance_norm = args.instance_norm
 
     params.spectral = args.discriminator_spectral
     params.fully_diff_spectral = args.fully_diff_spectral
@@ -310,6 +316,7 @@ def main():
                         help="Layer after block normalization. ccs - conditional shift and scale."
                              "ucs - uncoditional shift and scale. ucconv - condcoloring. ufconv - condcoloring + sa."
                              "n - None.")
+    parser.add_argument("--instance_norm", default=0, type=int, choices=[0, 1], help='0:false 1:true')
     parser.add_argument("--decomposition", default='cholesky', choices=['cholesky', 'zca', 'pca', 'iter_norm'], help='')
     parser.add_argument("--group", default=1, type=int, help='')
     parser.add_argument("--iter_num", default=5, type=int, help='')

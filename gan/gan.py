@@ -222,7 +222,7 @@ class GAN(object):
 
         updates = []
 
-        updates += self.collect_updates(self.discriminator)
+        # updates += self.collect_updates(self.discriminator)
         updates += self.collect_updates(self.generator)
         print(updates)
         updates += self.generator_optimizer.get_updates(params=self.generator.trainable_weights, loss=sum(loss_list))

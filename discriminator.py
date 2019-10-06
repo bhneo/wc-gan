@@ -14,14 +14,17 @@ from generator import create_norm
 
 def make_discriminator(input_image_shape, input_cls_shape=(1, ), block_sizes=(128, 128, 128, 128),
                        resamples=('DOWN', "DOWN", "SAME", "SAME"),
-                       number_of_classes=10, type='AC_GAN', norm='n', after_norm='n', spectral=False,
+                       number_of_classes=10, type='AC_GAN',
+                       norm='n', decomposition='cholesky', group=1, iter_num=5, instance_norm=0,
+                       after_norm='n',
+                       spectral=False,
                        fully_diff_spectral=False, spectral_iterations=1, conv_singular=True,
                        sum_pool=False, dropout=False, arch='res', filters_emb=10):
 
     assert arch in ['res', 'dcgan']
     assert len(block_sizes) == len(resamples)
-    x = Input(input_image_shape)
-    cls = Input(input_cls_shape, dtype='int32')
+    x = Input(input_image_shape, name='DInputImage')
+    cls = Input(input_cls_shape, dtype='int32', name='DLabel')
 
     if spectral:
         conv_layer = partial(SNConv2D, conv_singular=conv_singular,
@@ -37,7 +40,9 @@ def make_discriminator(input_image_shape, input_cls_shape=(1, ), block_sizes=(12
         dence_layer = Dense
         emb_layer = Embedding
 
-    norm_layer = create_norm(norm=norm, after_norm=after_norm, cls=cls, number_of_classes=number_of_classes,
+    norm_layer = create_norm(norm=norm, after_norm=after_norm,
+                             decomposition=decomposition, iter_num=iter_num, group=group, instance_norm=instance_norm,
+                             cls=cls, number_of_classes=number_of_classes,
                              conditional_conv_layer=cond_conv_layer, uncoditional_conv_layer=conv_layer,
                              filters_emb=filters_emb)
 
@@ -78,7 +83,7 @@ def make_discriminator(input_image_shape, input_cls_shape=(1, ), block_sizes=(12
         phi = Lambda(lambda inp: K.sum(inp[1] * K.expand_dims(inp[0], axis=1), axis=2), output_shape=(1, ))([y, emb])
         psi = dence_layer(units=1, use_bias=True, kernel_initializer=glorot_init)(y)
         out = Add()([phi, psi])
-        return Model(inputs=[x,cls], outputs=[out])
+        return Model(inputs=[x, cls], outputs=[out])
     elif type is None:
         out = dence_layer(units=1, use_bias=True, kernel_initializer=glorot_init)(y)
         return Model(inputs=[x], outputs=[out])

@@ -617,6 +617,7 @@ class DecorelationNormalization(Layer):
                  group=1,
                  decomposition='cholesky',
                  iter_num=5,
+                 instance_norm=0,
                  renorm=False,
                  moving_mean_initializer='zeros',
                  moving_cov_initializer='identity',
@@ -633,6 +634,7 @@ class DecorelationNormalization(Layer):
         self.renorm = renorm
         self.decomposition = decomposition
         self.iter_num = iter_num
+        self.instance_norm = instance_norm
 
     def cov_initializer(self, shape, dtype=tf.float32, partition_info=None):
         moving_convs = []
@@ -673,21 +675,29 @@ class DecorelationNormalization(Layer):
         _, w, h, c = K.int_shape(inputs)
         bs = K.shape(inputs)[0]
 
-        x_t = tf.transpose(inputs, (3, 0, 1, 2))
-
-        # BxCxHxW -> CxB*H*W
-        x_flat = tf.reshape(x_t, (c, -1))
+        if self.instance_norm:
+            x_t = tf.transpose(inputs, (0, 3, 1, 2))
+            x_flat = tf.reshape(x_t, (-1, c, w*h))
+            m = tf.reduce_mean(x_flat, axis=1, keepdims=True)
+        else:
+            x_t = tf.transpose(inputs, (3, 0, 1, 2))
+            # BxCxHxW -> CxB*H*W
+            x_flat = tf.reshape(x_t, (c, -1))
+            m = tf.reduce_mean(x_flat, axis=1, keepdims=True)
+            m = K.in_train_phase(m, self.moving_mean)
 
         # Covariance
-        m = tf.reduce_mean(x_flat, axis=1, keepdims=True)
-        m = K.in_train_phase(m, self.moving_mean)
         f = x_flat - m
-
         if self.decomposition == 'cholesky':
             def get_inv_sqrt(ff, m_per_group):
                 with tf.device('/cpu:0'):
                     sqrt = tf.linalg.cholesky(ff)
-                inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.tile(tf.expand_dims(tf.eye(m_per_group), 0), [self.group, 1, 1]))
+                if self.instance_norm:
+                    inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.tile(tf.expand_dims(tf.expand_dims(tf.eye(m_per_group), 0), 0),
+                                                                        [bs, self.group, 1, 1]))
+                else:
+                    inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.tile(tf.expand_dims(tf.eye(m_per_group), 0),
+                                                                        [self.group, 1, 1]))
                 return sqrt, inv_sqrt
         elif self.decomposition == 'zca':
             def get_inv_sqrt(ff, m_per_group):
@@ -729,22 +739,30 @@ class DecorelationNormalization(Layer):
             for i in range(self.group):
                 start_index = i * self.m_per_group
                 end_index = np.min(((i + 1) * self.m_per_group, c))
-                centered = f[start_index:end_index, :]
-                ff_apr = tf.matmul(centered, centered, transpose_b=True)
+                if self.instance_norm:
+                    centered = f[:, start_index:end_index, :]
+                    ff_apr = tf.matmul(centered, centered, transpose_b=True)
+                else:
+                    centered = f[start_index:end_index, :]
+                    ff_apr = tf.matmul(centered, centered, transpose_b=True)
                 ff_apr = tf.expand_dims(ff_apr, 0)
                 ff_aprs.append(ff_apr)
 
             ff_aprs = tf.concat(ff_aprs, 0)
             ff_aprs /= (tf.cast(bs * w * h, tf.float32) - 1.)
-            ff_aprs = (1 - self.epsilon) * ff_aprs + tf.expand_dims(tf.eye(self.m_per_group) * self.epsilon, 0)
 
-            self.add_update([K.moving_average_update(self.moving_mean,
-                                                     m,
-                                                     self.momentum),
-                             K.moving_average_update(self.moving_covs,
-                                                     ff_aprs,
-                                                     self.momentum)],
-                             inputs)
+            if self.instance_norm:
+                ff_aprs = tf.transpose(ff_aprs, (1, 0, 2, 3))
+                ff_aprs = (1 - self.epsilon) * ff_aprs + tf.expand_dims(tf.expand_dims(tf.eye(self.m_per_group) * self.epsilon, 0), 0)
+            else:
+                ff_aprs = (1 - self.epsilon) * ff_aprs + tf.expand_dims(tf.eye(self.m_per_group) * self.epsilon, 0)
+                self.add_update([K.moving_average_update(self.moving_mean,
+                                                         m,
+                                                         self.momentum),
+                                 K.moving_average_update(self.moving_covs,
+                                                         ff_aprs,
+                                                         self.momentum)],
+                                 inputs)
 
             if self.renorm:
                 l, l_inv = get_inv_sqrt(ff_aprs, self.m_per_group)
@@ -759,12 +777,18 @@ class DecorelationNormalization(Layer):
             ff_mov = (1 - self.epsilon) * self.moving_covs + tf.eye(self.m_per_group) * self.epsilon
             return get_inv_sqrt(ff_mov, self.m_per_group)[1]
 
-        inv_sqrt = K.in_train_phase(train, test)
-        f = tf.reshape(f, [self.group, self.m_per_group, -1])
-        f_hat = tf.matmul(inv_sqrt, f)
-
-        decorelated = K.reshape(f_hat, [c, bs, w, h])
-        decorelated = tf.transpose(decorelated, [1, 2, 3, 0])
+        if self.instance_norm == 1:
+            inv_sqrt = train()
+            f = tf.reshape(f, [-1, self.group, self.m_per_group, w*h])
+            f_hat = tf.matmul(inv_sqrt, f)
+            decorelated = K.reshape(f_hat, [bs, c, w, h])
+            decorelated = tf.transpose(decorelated, [0, 2, 3, 1])
+        else:
+            inv_sqrt = K.in_train_phase(train, test)
+            f = tf.reshape(f, [self.group, self.m_per_group, -1])
+            f_hat = tf.matmul(inv_sqrt, f)
+            decorelated = K.reshape(f_hat, [c, bs, w, h])
+            decorelated = tf.transpose(decorelated, [1, 2, 3, 0])
 
         return decorelated
 
@@ -780,29 +804,30 @@ class DecorelationNormalization(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
+def test_dbn_eager():
+    tf.enable_eager_execution()
+    data = tf.random.normal([128, 8, 8, 16])
+    # K.set_learning_phase(1)
+    decor = DecorelationNormalization(group=4, instance_norm=1)
+    out = decor(data)
+    out = tf.reduce_mean(out)
+    print(out)
+    print()
+
+
 def test_dbn():
-    # tf.enable_eager_execution()
     inputs = tf.keras.layers.Input([8, 8, 16])
     data = np.random.normal(0, 1, [128, 8, 8, 16])
-    # data = tf.random.normal([128, 8, 8, 16])
     # K.set_learning_phase(1)
-    decor1 = DecorelationNormalization(group=1)
-    # decor2 = DecorelationNormalizationOri(group=1)
-    out1 = decor1(inputs)
-    # out2 = decor2(inputs)
-    out1 = tf.reduce_mean(out1)
-    # out2 = tf.reduce_mean(out2)
-    # print(out1)
-    # print(out2)
-    # print()
+    decor = DecorelationNormalization(group=1, instance_norm=1)
+    out = decor(inputs)
+    out = tf.reduce_mean(out)
     sess = K.get_session()
     sess.run(tf.global_variables_initializer())
     K.set_learning_phase(1)
-    # outputs1, outputs2 = sess.run([out1, out2], feed_dict={inputs: data})
-    outputs1 = sess.run([out1], feed_dict={inputs: data})
+    outputs = sess.run([out], feed_dict={inputs: data})
+    print(np.mean(outputs))
 
-    print(np.mean(outputs1))
-    # print(np.mean(outputs2))
 
 # class DecorelationNormalization(Layer):
 #     def __init__(self,

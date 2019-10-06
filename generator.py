@@ -12,7 +12,7 @@ from functools import partial
 
 
 def create_norm(norm, after_norm,
-                decomposition='zca', iter_num=5, group=0,
+                decomposition='zca', iter_num=5, group=0, instance_norm=0,
                 cls=None, number_of_classes=None, filters_emb=10,
                 uncoditional_conv_layer=Conv2D, conditional_conv_layer=ConditionalConv11,
                 factor_conv_layer=FactorizedConv11):
@@ -27,12 +27,14 @@ def create_norm(norm, after_norm,
         norm_layer = lambda axis, name: DecorelationNormalization(name=name,
                                                                   group=group,
                                                                   decomposition=decomposition,
-                                                                  iter_num=iter_num)
+                                                                  iter_num=iter_num,
+                                                                  instance_norm=instance_norm)
     elif norm == 'dr':
         norm_layer = lambda axis, name: DecorelationNormalization(name=name,
                                                                   group=group,
                                                                   decomposition=decomposition,
                                                                   iter_num=iter_num,
+                                                                  instance_norm=instance_norm,
                                                                   renorm=True)
 
     if after_norm == 'ccs':
@@ -104,13 +106,14 @@ def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=
                    block_sizes=(128, 128, 128), resamples=("UP", "UP", "UP"),
                    first_block_shape=(4, 4, 128), number_of_classes=10, concat_cls=False,
                    block_norm='u', block_after_norm='cs', filters_emb=10,
-                   last_norm='u', last_after_norm='cs', decomposition='cholesky', group=1, iter_num=5,
+                   last_norm='u', last_after_norm='cs',
+                   decomposition='cholesky', group=1, iter_num=5, instance_norm=0,
                    gan_type=None, arch='res', spectral=False,
                    fully_diff_spectral=False, spectral_iterations=1, conv_singular=True,):
 
     assert arch in ['res', 'dcgan']
-    inp = Input(input_noise_shape)
-    cls = Input(input_cls_shape, dtype='int32')
+    inp = Input(input_noise_shape, name='GInputImage')
+    cls = Input(input_cls_shape, dtype='int32', name='GLabel')
 
     if spectral:
         conv_layer = partial(SNConv2D, conv_singular=conv_singular,
@@ -139,12 +142,14 @@ def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=
     y = dense_layer(units=np.prod(first_block_shape), kernel_initializer=glorot_init)(y)
     y = Reshape(first_block_shape)(y)
 
-    block_norm_layer = create_norm(block_norm, block_after_norm, decomposition=decomposition, group=group, iter_num=iter_num,
+    block_norm_layer = create_norm(block_norm, block_after_norm,
+                                   decomposition=decomposition, group=group, iter_num=iter_num, instance_norm=instance_norm,
                                    cls=cls, number_of_classes=number_of_classes, filters_emb=filters_emb,
                                    uncoditional_conv_layer=conv_layer, conditional_conv_layer=cond_conv_layer,
                                    factor_conv_layer=factor_conv_layer)
 
-    last_norm_layer = create_norm(last_norm, last_after_norm, decomposition=decomposition, group=group, iter_num=iter_num,
+    last_norm_layer = create_norm(last_norm, last_after_norm,
+                                  decomposition=decomposition, group=group, iter_num=iter_num, instance_norm=instance_norm,
                                   cls=cls, number_of_classes=number_of_classes, filters_emb=filters_emb,
                                   uncoditional_conv_layer=conv_layer, conditional_conv_layer=cond_conv_layer,
                                   factor_conv_layer=factor_conv_layer)
