@@ -191,15 +191,16 @@ def get_generator_params(args):
     params.concat_cls = args.generator_concat_cls
 
     params.block_norm = args.generator_block_norm
-    params.block_after_norm = args.generator_block_after_norm
+    params.block_coloring = args.generator_block_coloring
 
     params.last_norm = args.generator_last_norm
-    params.last_after_norm = args.generator_last_after_norm
+    params.last_coloring = args.generator_last_coloring
 
-    params.decomposition = args.decomposition
-    params.group = args.group
-    params.iter_num = args.iter_num
-    params.instance_norm = args.instance_norm
+    params.decomposition = args.g_decomposition
+    params.whitten_group = args.g_whitten_group
+    params.coloring_group = args.g_coloring_group
+    params.iter_num = args.g_iter_num
+    params.instance_norm = args.g_instance_norm
 
     params.spectral = args.generator_spectral
     params.fully_diff_spectral = args.fully_diff_spectral
@@ -240,12 +241,13 @@ def get_discriminator_params(args):
                                                                  else (200 if args.dataset == 'tiny-imagenet' else 10))
 
     params.norm = args.discriminator_norm
-    params.after_norm = args.discriminator_after_norm
+    params.coloring = args.discriminator_coloring
 
-    params.decomposition = args.decomposition
-    params.group = args.group
-    params.iter_num = args.iter_num
-    params.instance_norm = args.instance_norm
+    params.decomposition = args.d_decomposition
+    params.whitten_group = args.d_whitten_group
+    params.coloring_group = args.d_coloring_group
+    params.iter_num = args.d_iter_num
+    params.instance_norm = args.d_instance_norm
 
     params.spectral = args.discriminator_spectral
     params.fully_diff_spectral = args.fully_diff_spectral
@@ -264,92 +266,14 @@ def get_discriminator_params(args):
 
 
 def main():
-    parser = parser_with_default_args()
-    parser.add_argument("--name", default="gan", help="Name of the experiment (it will create corresponding folder)")
-    parser.add_argument("--phase", choices=['train', 'test'], default='train',
-                        help="Train or test, test only compute scores and generate grid of images."
-                             "For test generator checkpoint should be given.")
-
-    parser.add_argument("--dataset", default='cifar10',
-                        choices=['mnist', 'cifar10', 'cifar100', 'fashion-mnist', 'stl10', 'imagenet', 'tiny-imagenet'],
-                        help='Dataset to train on')
-    parser.add_argument("--arch", default='dcgan', choices=['res', 'dcgan'], help="Gan architecture resnet or dcgan.")
-
-    parser.add_argument("--generator_lr", default=2e-4, type=float, help="Learning rate")
-    parser.add_argument("--discriminator_lr", default=2e-4, type=float, help="Learning rate")
-
-    parser.add_argument("--beta1", default=0, type=float, help='Adam parameter')
-    parser.add_argument("--beta2", default=0.9, type=float, help='Adam parameter')
-    parser.add_argument("--lr_decay_schedule", default='linear',
-                        help='Learnign rate decay schedule:'
-                             'None - no decay.'
-                             'linear - linear decay to zero.'
-                             'half-linear - linear decay to 0.5'
-                             'linear-end - constant until 0.9, then linear decay to 0. '
-                             'dropat30 - drop lr 10 times at 30 epoch (any number insdead of 30 allowed).')
-
-    parser.add_argument("--generator_spectral", default=0, type=int, help='Use spectral norm in generator.')
-    parser.add_argument("--discriminator_spectral", default=0, type=int, help='Use spectral norm in discriminator.')
- 
-    parser.add_argument("--fully_diff_spectral", default=0, type=int, help='Fully difirentiable spectral normalization.')
-    parser.add_argument("--spectral_iterations", default=1, type=int, help='Number of iteration per spectral update.')
-    parser.add_argument("--conv_singular", default=0, type=int, help='Use convolutional spectral normalization.')
-
-    parser.add_argument("--gan_type", default=None, choices=[None, 'AC_GAN', 'PROJECTIVE'],
-                        help='Type of gan to use. None for unsuperwised.')
-
-    parser.add_argument("--filters_emb", default=10, type=int, help='Number of inner filters in factorized conv.')
-
-    parser.add_argument("--generator_block_norm", default='d', choices=['n', 'b', 'd', 'dr'],
-                        help='Normalization in generator block. b - batch, d - whitening, n - none, '
-                             'dr - whitening with renornaliazation.')
-    parser.add_argument("--generator_block_after_norm", default='uconv',
-                        choices=['ccs', 'fconv', 'ucs', 'uccs', 'ufconv', 'cconv', 'uconv', 'ucconv','ccsuconv', 'n'],
-                        help="Layer after block normalization. ccs - conditional shift and scale."
-                             "ucs - uncoditional shift and scale. ucconv - condcoloring. ufconv - condcoloring + sa."
-                             "n - None.")
-    parser.add_argument("--generator_last_norm", default='d', choices=['n', 'b', 'd', 'dr'],
-                        help='Normalization in generator block. b - batch, d - whitening, n - none, '
-                             'dr - whitening with renornaliazation.')
-    parser.add_argument("--generator_last_after_norm", default='uconv',
-                        choices=['ccs', 'ucs', 'uccs', 'ufconv', 'cconv', 'uconv', 'ucconv', 'ccsuconv', 'n'],
-                        help="Layer after block normalization. ccs - conditional shift and scale."
-                             "ucs - uncoditional shift and scale. ucconv - condcoloring. ufconv - condcoloring + sa."
-                             "n - None.")
-    parser.add_argument("--instance_norm", default=0, type=int, choices=[0, 1], help='0:false 1:true')
-    parser.add_argument("--decomposition", default='cholesky', choices=['cholesky', 'zca', 'pca', 'iter_norm'], help='')
-    parser.add_argument("--group", default=1, type=int, help='')
-    parser.add_argument("--iter_num", default=5, type=int, help='')
-    parser.add_argument("--generator_batch_multiple", default=2, type=int,
-                        help="Size of the generator batch, multiple of batch_size.")
-    parser.add_argument("--generator_concat_cls", default=0, type=int, help='Concat labels to noise in generator.')
-    parser.add_argument("--generator_filters", default=256, type=int, help='Base number of filters in generator block.')
-
-    parser.add_argument("--discriminator_norm", default='n', choices=['n', 'b', 'd', 'dr'],
-                        help='Normalization in disciminator block. b - batch, d - whitening, n - none, '
-                             'dr - whitening with renornaliazation.')
-    parser.add_argument("--discriminator_after_norm", default='n',
-                        choices=['ccs', 'fconv', 'ucs', 'uccs', 'ufconv', 'cconv', 'uconv', 'ucconv','ccsuconv', 'n'],
-                        help="Layer after block normalization. ccs - conditional shift and scale."
-                             "ucs - uncoditional shift and scale. ucconv - condcoloring. ufconv - condcoloring + sa."
-                             "n - None.")
-    parser.add_argument("--discriminator_filters", default=128, type=int, help='Base number of filters in discriminator block.')
-    parser.add_argument("--discriminator_dropout", type=float, default=0, help="Use dropout in discriminator.")
-    parser.add_argument("--shred_disc_batch", type=int, default=0, help='Shred batch in discriminator to save memory')
-
-    parser.add_argument("--sum_pool", default=1, type=int, help='Use sum or average pooling in discriminator.')
-
-    parser.add_argument("--samples_inception", default=50000, type=int, help='Samples for IS score, 0 - no compute inception')
-    parser.add_argument("--samples_fid", default=10000, type=int, help="Samples for FID score, 0 - no compute FID")
-    
-    args = parser.parse_args()
+    args = parser_with_default_args()
 
     dataset = get_dataset(dataset=args.dataset,
                           batch_size=args.batch_size,
                           supervised=args.gan_type is not None)
 
-    # args.output_dir = "output/%s_%s_%s" % (args.name, args.phase, time())
-    args.output_dir = "output/%s_%s" % (args.name, time())
+    args.output_dir = "output/%s_%s_%s" % (args.name, args.phase, time())
+    # args.output_dir = "output/%s_%s" % (args.name, time())
     print(args.output_dir)
     args.checkpoints_dir = args.output_dir
     if not os.path.exists(args.output_dir):

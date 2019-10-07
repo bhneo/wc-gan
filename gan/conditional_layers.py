@@ -654,7 +654,7 @@ class DecorelationNormalization(Layer):
                              str(input_shape) + '.')
 
         self.m_per_group = dim // self.group
-        assert (dim % self.m_per_group == 0), 'm_per_group incorrect!'
+        assert (dim % self.m_per_group == 0), 'group incorrect!'
 
         self.moving_mean = self.add_weight(shape=(dim, 1),
                                            name='moving_mean',
@@ -956,11 +956,22 @@ def test_dbn():
 #         base_config = super(DecorelationNormalization, self).get_config()
 #         return dict(list(base_config.items()) + list(config.items()))
 
+class Split(Layer):
+    def __init__(self, num_or_size_splits, axis, **kwargs):
+        super(Split, self).__init__(**kwargs)
+        self.num_or_size_splits = num_or_size_splits
+        self.axis = axis
+
+    def call(self, inputs):
+        splits = tf.split(inputs, self.num_or_size_splits, self.axis)
+        return splits
+
 
 class ConditionalConv11(Layer):
     def __init__(self, filters,
                  number_of_classes,
                  strides=1,
+                 group=1,
                  data_format=None,
                  activation=None,
                  use_bias=True,
@@ -979,6 +990,7 @@ class ConditionalConv11(Layer):
         self.number_of_classes = number_of_classes
         self.strides = conv_utils.normalize_tuple(strides, 2, 'strides')
         self.padding = conv_utils.normalize_padding('same')
+        self.group = group
         self.data_format = conv_utils.normalize_data_format(data_format)
         self.dilation_rate = conv_utils.normalize_tuple(1, 2, 'dilation_rate')
         self.activation = activations.get(activation)
@@ -1001,8 +1013,10 @@ class ConditionalConv11(Layer):
             raise ValueError('The channel dimension of the inputs '
                              'should be defined. Found `None`.')
         input_dim = input_shape[0][channel_axis].value
+        assert (input_dim % self.group == 0), 'group incorrect!'
+        self.m_per_group = input_dim // self.group
         self.input_dim = input_dim
-        kernel_shape = (self.number_of_classes, ) + self.kernel_size + (input_dim, self.filters)
+        kernel_shape = (self.number_of_classes,) + self.kernel_size + (input_dim, self.filters)
 
         self.kernel = self.add_weight(shape=kernel_shape,
                                       initializer=self.kernel_initializer,
@@ -1023,38 +1037,37 @@ class ConditionalConv11(Layer):
         cls = inputs[1]
         x = inputs[0]
 
-        
         ### Preprocess input
-        #(bs, w, h, c)
+        # (bs, w, h, c)
         if self.data_format != 'channels_first':
-            x = tf.transpose(x,  [0, 3, 1, 2])
+            x = tf.transpose(x, [0, 3, 1, 2])
             _, in_c, w, h = K.int_shape(x)
         else:
             _, w, h, in_c = K.int_shape(x)
-        #(bs, c, w, h)
+        # (bs, c, w, h)
         x = tf.reshape(x, (-1, in_c, w * h))
-        #(bs, c, w*h)
+        # (bs, c, w*h)
         x = tf.transpose(x, [0, 2, 1])
-        #(bs, w*h, c)
+        # (bs, w*h, c)
 
         ### Preprocess filter
         cls = tf.squeeze(cls, axis=1)
-        #(num_cls, 1, 1, in, out)
+        # (num_cls, 1, 1, in, out)
         if self.triangular:
             kernel = tf.matrix_band_part(self.kernel, 0, -1)
         else:
             kernel = self.kernel
         kernel = tf.gather(kernel, cls)
-        #(bs, 1, 1, in, out)
+        # (bs, 1, 1, in, out)
 
         kernel = tf.squeeze(kernel, axis=1)
         kernel = tf.squeeze(kernel, axis=1)
-        #print (K.int_shape(kernel))
-        #(in, 1, bs, out)
-        #print (K.int_shape(kernel))
+        # print (K.int_shape(kernel))
+        # (in, 1, bs, out)
+        # print (K.int_shape(kernel))
 
         output = tf.matmul(x, kernel)
-        #(bs, w*h, out)
+        # (bs, w*h, out)
 
         ### Deprocess output
         output = tf.transpose(output, [0, 2, 1])
@@ -1062,16 +1075,16 @@ class ConditionalConv11(Layer):
         output = tf.reshape(output, (-1, self.filters, w, h))
         # (bs, out, w, h)
         if self.bias is not None:
-            #(num_cls, out)
+            # (num_cls, out)
             bias = tf.gather(self.bias, cls)
-            #(bs, bias)
+            # (bs, bias)
             bias = tf.expand_dims(bias, axis=-1)
             bias = tf.expand_dims(bias, axis=-1)
-            #(bs, bias, 1, 1)
+            # (bs, bias, 1, 1)
             output += bias
 
         if self.data_format != 'channels_first':
-            #(bs, out, w, h)
+            # (bs, out, w, h)
             output = tf.transpose(output, [0, 2, 3, 1])
 
         if self.activation is not None:
