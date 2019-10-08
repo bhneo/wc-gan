@@ -69,8 +69,9 @@ CUDA_VISIBLE_DEVICES=${Count} python run.py --name \$name --dataset ${dataset} -
  --discriminator_norm ${discriminator_norm} --discriminator_coloring ${discriminator_coloring}\\
  --d_decomposition ${Dmethods[$i]} --d_iter_num ${d_iter_num} --d_whitten_m ${Dm[$k]} --d_coloring_m ${Dm[$k]} --d_instance_norm ${d_instance_norm}\\
  --gradient_penalty_weight ${gradient_penalty_weight}\\
- --lr_decay_schedule ${lr_decay_schedule}\\
- --number_of_epochs ${number_of_epochs}\\
+ --lr_decay_schedule ${lr_decay_schedule} --generator_lr ${generator_lr} --discriminator_lr ${discriminator_lr}\\
+ --beta1 ${beta1} --beta2 ${beta2}
+ --number_of_epochs ${number_of_epochs} --batch_size ${batch_size}\\
  --training_ratio ${training_ratio} --generator_batch_multiple ${generator_batch_multiple} \\" >> ${fileName}
              
                 echo  "nohup bash ${fileName} >output_${baseString}.out 2>&1 &" >> z_bash_excute.sh
