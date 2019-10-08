@@ -4,7 +4,7 @@ from tensorflow.python.keras.layers import Add, Embedding, LeakyReLU
 
 from gan.utils import resblock, dcblock
 from gan.layers.coloring import ConditionalConv11
-from gan.spectral_normalized_layers import SNConv2D, SNDense, SNConditionalConv11, SNEmbeding
+from layers.spectral_normalized_layers import SNConv2D, SNDense, SNConditionalConv11, SNEmbeding
 from gan.layers.misc import GlobalSumPooling2D
 from gan.utils import glorot_init
 from functools import partial

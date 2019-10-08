@@ -10,7 +10,7 @@ from gan.utils import glorot_init, resblock, dcblock
 from gan.layers.coloring import ConditionalConv11, ConditionalCenterScale, CenterScale, FactorizedConv11
 from gan.layers.normalization import DecorelationNormalization
 from gan.layers.misc import Split
-from gan.spectral_normalized_layers import SNConv2D, SNConditionalConv11, SNDense, SNEmbeding, SNFactorizedConv11
+from layers.spectral_normalized_layers import SNConv2D, SNConditionalConv11, SNDense, SNEmbeding, SNFactorizedConv11
 from functools import partial
 
 
