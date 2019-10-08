@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.keras import backend as K
 
-from gan.utils import glorot_init, resblock, dcblock
+from gan.utils import glorot_init, resblock, dcblock, get_m_group
 from gan.layers.coloring import ConditionalConv11, ConditionalCenterScale, CenterScale, FactorizedConv11
 from gan.layers.normalization import DecorelationNormalization
 from gan.layers.misc import Split
@@ -56,13 +56,12 @@ def create_norm(norm, coloring,
     elif coloring == 'cconv':
         def after_norm_layer(axis, name):
             def f(x):
-                channel = K.int_shape(x)[axis]
-                coloring_group = channel // coloring_m
+                coloring_group, m = get_m_group(x, coloring_m, axis)
                 if coloring_group > 1:
                     splits = Split(coloring_group, axis)(x)
                     outs = []
                     for i, split in enumerate(splits):
-                        split_out = conditional_conv_layer(filters=coloring_m, number_of_classes=number_of_classes, name=name+str(i))([split, cls])
+                        split_out = conditional_conv_layer(filters=m, number_of_classes=number_of_classes, name=name+str(i))([split, cls])
                         outs.append(split_out)
                     out = tf.keras.layers.Concatenate(axis)(outs)
                 else:
@@ -73,13 +72,12 @@ def create_norm(norm, coloring,
     elif coloring == 'fconv':
         def after_norm_layer(axis, name):
             def f(x):
-                channel = K.int_shape(x)[axis]
-                coloring_group = channel // coloring_m
+                coloring_group, m = get_m_group(x, coloring_m, axis)
                 if coloring_group > 1:
                     splits = Split(coloring_group, axis)(x)
                     outs = []
                     for i, split in enumerate(splits):
-                        split_out = factor_conv_layer(filters=coloring_m, number_of_classes=number_of_classes, name=name + '_c'+str(i), filters_emb=filters_emb, use_bias=False)([split, cls])
+                        split_out = factor_conv_layer(filters=m, number_of_classes=number_of_classes, name=name + '_c'+str(i), filters_emb=filters_emb, use_bias=False)([split, cls])
                         outs.append(split_out)
                     out = tf.keras.layers.Concatenate(axis)(outs)
                 else:
@@ -89,13 +87,12 @@ def create_norm(norm, coloring,
     elif coloring == 'uconv':
         def after_norm_layer(axis, name):
             def f(x):
-                channel = K.int_shape(x)[axis]
-                coloring_group = channel // coloring_m
+                coloring_group, m = get_m_group(x, coloring_m, axis)
                 if coloring_group > 1:
                     splits = Split(coloring_group, axis)(x)
                     outs = []
                     for i, split in enumerate(splits):
-                        split_out = uncoditional_conv_layer(filters=coloring_m, kernel_size=(1, 1), name=name+str(i))(split)
+                        split_out = uncoditional_conv_layer(filters=m, kernel_size=(1, 1), name=name+str(i))(split)
                         outs.append(split_out)
                     out = tf.keras.layers.Concatenate(axis)(outs)
                 else:
@@ -105,14 +102,13 @@ def create_norm(norm, coloring,
     elif coloring == 'ucconv':
         def after_norm_layer(axis, name):
             def f(x):
-                channel = K.int_shape(x)[axis]
-                coloring_group = channel // coloring_m
+                coloring_group, m = get_m_group(x, coloring_m, axis)
                 if coloring_group > 1:
                     splits = Split(coloring_group, axis)(x)
                     cs = []
                     us = []
                     for i, split in enumerate(splits):
-                        split_c = conditional_conv_layer(filters=coloring_m, number_of_classes=number_of_classes, name=name + '_c'+str(i))([split, cls])
+                        split_c = conditional_conv_layer(filters=m, number_of_classes=number_of_classes, name=name + '_c'+str(i))([split, cls])
                         split_u = uncoditional_conv_layer(kernel_size=(1, 1), filters=K.int_shape(x)[axis], name=name + '_u'+str(i))(split)
                         cs.append(split_c)
                         us.append(split_u)
@@ -128,14 +124,13 @@ def create_norm(norm, coloring,
     elif coloring == 'ccsuconv':
         def after_norm_layer(axis, name):
             def f(x):
-                channel = K.int_shape(x)[axis]
-                coloring_group = channel // coloring_m
+                coloring_group, m = get_m_group(x, coloring_m, axis)
                 c = ConditionalCenterScale(number_of_classes=number_of_classes, axis=axis, name=name + '_c')([x, cls])
                 if coloring_group > 1:
                     splits = Split(coloring_group, axis)(x)
                     us = []
                     for i, split in enumerate(splits):
-                        split_u = uncoditional_conv_layer(kernel_size=(1, 1), filters=coloring_m, name=name + '_u'+str(i))(split)
+                        split_u = uncoditional_conv_layer(kernel_size=(1, 1), filters=m, name=name + '_u'+str(i))(split)
                         us.append(split_u)
                     u = tf.keras.layers.Concatenate(axis)(us)
                 else:
@@ -146,17 +141,16 @@ def create_norm(norm, coloring,
     elif coloring == 'ufconv':
         def after_norm_layer(axis, name):
             def f(x):
-                channel = K.int_shape(x)[axis]
-                coloring_group = channel // coloring_m
+                coloring_group, m = get_m_group(x, coloring_m, axis)
                 if coloring_group > 1:
                     splits = Split(coloring_group, axis)(x)
                     cs = []
                     us = []
                     for i, split in enumerate(splits):
                         split_c = factor_conv_layer(number_of_classes=number_of_classes, name=name + '_c'+str(i),
-                                     filters=coloring_m, filters_emb=filters_emb,
+                                     filters=m, filters_emb=filters_emb,
                                      use_bias=False)([split, cls])
-                        split_u = uncoditional_conv_layer(kernel_size=(1, 1), filters=coloring_m, name=name + '_u'+str(i))(split)
+                        split_u = uncoditional_conv_layer(kernel_size=(1, 1), filters=m, name=name + '_u'+str(i))(split)
                         cs.append(split_c)
                         us.append(split_u)
                     c = tf.keras.layers.Concatenate(axis)(cs)
