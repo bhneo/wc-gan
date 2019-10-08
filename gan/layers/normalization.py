@@ -408,8 +408,10 @@ class DecorelationNormalization(Layer):
                              'but the layer received an input with shape ' +
                              str(input_shape) + '.')
 
+        if self.m_per_group == 0:
+            self.m_per_group = dim
         self.group = dim // self.m_per_group
-        assert (dim % self.m_per_group == 0), 'm_per_group incorrect!'
+        assert (dim % self.m_per_group == 0), 'dim is {}, m is {}'.format(dim, self.m_per_group)
 
         self.moving_mean = self.add_weight(shape=(dim, 1),
                                            name='moving_mean',
@@ -510,7 +512,7 @@ def test_dbn_eager():
 
 def test_dbn_eager2():
     tf.enable_eager_execution()
-    data = tf.random.normal([128, 7, 7, 16])
+    data = tf.random.normal([1, 7, 7, 16])
     K.set_learning_phase(1)
     # tf.set_random_seed(1)
     decor1 = DecorelationNormalization(m_per_group=2, decomposition='pca', instance_norm=0)

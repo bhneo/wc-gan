@@ -142,10 +142,10 @@ class Trainer(object):
             if (self.current_epoch + 1) % self.display_ratio == 0:
                 self.save_generated_images()
             self.train_one_epoch((((self.current_epoch + 1) % self.checkpoint_ratio == 0) or self.current_epoch==0))
-            self.current_epoch += 1
-            if (self.current_epoch - 1) % self.checkpoint_ratio == 0:
+            if (self.current_epoch + 1) % self.checkpoint_ratio == 0:
                 self.make_checkpoint()
-            self.at_store_checkpoint_hook = partial(self.at_store_checkpoint_hook, step=self.current_epoch)
+            self.at_store_checkpoint_hook = partial(self.at_store_checkpoint_hook, step=self.current_epoch + 1)
+            self.current_epoch += 1
 
         if (self.current_epoch + 1) % self.display_ratio == 0:
             self.save_generated_images()
