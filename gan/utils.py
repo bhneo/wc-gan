@@ -120,6 +120,16 @@ def get_group_cov2(inputs, group, m_per_group, instance_norm, bs, w, h, c):
     return ff_aprs
 
 
+def get_m_group(x, m, axis):
+    channel = K.int_shape(x)[axis]
+    if m > 0:
+        group = channel // m
+    else:
+        group = 1
+        m = channel
+    return group, m
+
+
 def jacobian(y_flat, x):
     n = y_flat.shape[0]
 
