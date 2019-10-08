@@ -1,17 +1,123 @@
-from tensorflow.python.keras.layers import Activation, Lambda
-from tensorflow.python.keras.layers.convolutional import Conv2D, UpSampling2D
-from tensorflow.python.keras.layers.normalization import BatchNormalization
-from tensorflow.python.keras.layers.merge import Add
-from tensorflow.python.keras.layers.pooling import AveragePooling2D
-import tensorflow as tf
-from tensorflow.python.keras.layers import Layer
-from tensorflow.python.keras.models import Input, Model
-from tensorflow.python.keras.layers.pooling import GlobalPooling2D
-from tensorflow.python.keras import backend as K
 from functools import partial
-from tensorflow.python.keras.layers import LeakyReLU
 
 import numpy as np
+import tensorflow as tf
+from tensorflow.python.keras import backend as K
+from tensorflow.python.keras.layers import Activation, Lambda
+from tensorflow.python.keras.layers import LeakyReLU
+from tensorflow.python.keras.layers.convolutional import Conv2D, UpSampling2D
+from tensorflow.python.keras.layers.merge import Add
+from tensorflow.python.keras.layers.normalization import BatchNormalization
+from tensorflow.python.keras.layers.pooling import AveragePooling2D
+from tensorflow.python.keras.models import Input, Model
+
+
+def center(inputs, moving_mean, instance_norm=False):
+    _, w, h, c = K.int_shape(inputs)
+    if instance_norm:
+        x_t = tf.transpose(inputs, (0, 3, 1, 2))
+        x_flat = tf.reshape(x_t, (-1, c, w * h))
+        # (bs, c, w*h)
+        m = tf.reduce_mean(x_flat, axis=2, keepdims=True)
+        # (bs, c, 1)
+    else:
+        x_t = tf.transpose(inputs, (3, 0, 1, 2))
+        x_flat = tf.reshape(x_t, (c, -1))
+        # (c, bs*w*h)
+        m = tf.reduce_mean(x_flat, axis=1, keepdims=True)
+        m = K.in_train_phase(m, moving_mean)
+        # (c, 1)
+    f = x_flat - m
+    return m, f
+
+
+def get_decomposition(decomposition, batch_size, group, instance_norm, iter_num, epsilon):
+    if decomposition == 'cholesky':
+        def get_inv_sqrt(ff, m_per_group):
+            with tf.device('/cpu:0'):
+                sqrt = tf.linalg.cholesky(ff)
+            if instance_norm:
+                inv_sqrt = tf.linalg.triangular_solve(sqrt,
+                                                      tf.tile(tf.expand_dims(tf.expand_dims(tf.eye(m_per_group), 0), 0),
+                                                              [batch_size, group, 1, 1]))
+            else:
+                inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.tile(tf.expand_dims(tf.eye(m_per_group), 0),
+                                                                    [group, 1, 1]))
+            return sqrt, inv_sqrt
+    elif decomposition == 'zca':
+        def get_inv_sqrt(ff, m_per_group):
+            with tf.device('/cpu:0'):
+                S, U, _ = tf.svd(ff + tf.eye(m_per_group) * epsilon, full_matrices=True)
+            D = tf.linalg.diag(tf.pow(S, -0.5))
+            inv_sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
+            D = tf.linalg.diag(tf.pow(S, 0.5))
+            sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
+            return sqrt, inv_sqrt
+    elif decomposition == 'pca':
+        def get_inv_sqrt(ff, m_per_group):
+            with tf.device('/cpu:0'):
+                S, U, _ = tf.svd(ff + tf.eye(m_per_group) * epsilon, full_matrices=True)
+            D = tf.linalg.diag(tf.pow(S, -0.5))
+            inv_sqrt = tf.matmul(D, U, transpose_b=True)
+            D = tf.linalg.diag(tf.pow(S, 0.5))
+            sqrt = tf.matmul(D, U, transpose_b=True)
+            return sqrt, inv_sqrt
+    elif decomposition == 'iter_norm':
+        def get_inv_sqrt(ff, m_per_group):
+            trace = tf.linalg.trace(ff)
+            trace = tf.expand_dims(trace, [-1])
+            trace = tf.expand_dims(trace, [-1])
+            sigma_norm = ff / trace
+
+            projection = tf.eye(m_per_group)
+            projection = tf.expand_dims(projection, 0)
+            projection = tf.tile(projection, [group, 1, 1])
+            for i in range(iter_num):
+                projection = (3 * projection - projection * projection * projection * sigma_norm) / 2
+
+            return None, projection / tf.sqrt(trace)
+    else:
+        assert False
+    return get_inv_sqrt
+
+
+def get_group_cov(inputs, group, m_per_group, instance_norm, bs, w, h, c):
+    ff_aprs = []
+    for i in range(group):
+        start_index = i * m_per_group
+        end_index = np.min(((i + 1) * m_per_group, c))
+        if instance_norm:
+            centered = inputs[:, start_index:end_index, :]
+        else:
+            centered = inputs[start_index:end_index, :]
+        ff_apr = tf.matmul(centered, centered, transpose_b=True)
+        ff_apr = tf.expand_dims(ff_apr, 0)
+        ff_aprs.append(ff_apr)
+
+    ff_aprs = tf.concat(ff_aprs, 0)
+    if instance_norm:
+        ff_aprs /= (tf.cast(w * h, tf.float32) - 1.)
+    else:
+        ff_aprs /= (tf.cast(bs * w * h, tf.float32) - 1.)
+    return ff_aprs
+
+
+def get_group_cov2(inputs, group, m_per_group, instance_norm, bs, w, h, c):
+    if instance_norm:
+        splits = tf.split(inputs, group, axis=1)  # (bs,m,w*h)
+    else:
+        splits = tf.split(inputs, group, axis=0)  # (m,bs*w*h)
+    centereds = []
+    for split in splits:
+        centereds.append(tf.expand_dims(split, 0))
+    centereds = tf.concat(centereds, 0)  # (group,bs,m,w*h) / (group,m,bs*w*h)
+    ff_aprs = tf.matmul(centereds, centereds, transpose_b=True)
+
+    if instance_norm:
+        ff_aprs /= (tf.cast(w * h, tf.float32) - 1.)
+    else:
+        ff_aprs /= (tf.cast(bs * w * h, tf.float32) - 1.)
+    return ff_aprs
 
 
 def jacobian(y_flat, x):
@@ -52,71 +158,6 @@ def content_features_model(image_size, layer_name='block4_conv1'):
     return Model(inputs=x, outputs=y)
 
 
-class GlobalSumPooling2D(GlobalPooling2D):
-    """Global sum pooling operation for spatial data.
-    # Arguments
-        data_format: A string,
-            one of `channels_last` (default) or `channels_first`.
-            The ordering of the dimensions in the inputs.
-            `channels_last` corresponds to inputs with shape
-            `(batch, height, width, channels)` while `channels_first`
-            corresponds to inputs with shape
-            `(batch, channels, height, width)`.
-            It defaults to the `image_data_format` value found in your
-            Keras config file at `~/.keras/keras.json`.
-            If you never set it, then it will be "channels_last".
-    # Input shape
-        - If `data_format='channels_last'`:
-            4D tensor with shape:
-            `(batch_size, rows, cols, channels)`
-        - If `data_format='channels_first'`:
-            4D tensor with shape:
-            `(batch_size, channels, rows, cols)`
-    # Output shape
-        2D tensor with shape:
-        `(batch_size, channels)`
-    """
-
-    def call(self, inputs):
-        if self.data_format == 'channels_last':
-            return K.sum(inputs, axis=[1, 2])
-        else:
-            return K.sum(inputs, axis=[2, 3])
-
-class GaussianFromPointsLayer(Layer):
-    def __init__(self, sigma=6, image_size=(128, 64), **kwargs):
-        self.sigma = sigma
-        self.image_size = image_size
-        super(GaussianFromPointsLayer, self).__init__(**kwargs)
-
-    def build(self, input_shape):
-        self.xx, self.yy = tf.meshgrid(tf.range(self.image_size[1]),
-                                        tf.range(self.image_size[0]))
-        self.xx = tf.expand_dims(tf.cast(self.xx, 'float32'), 2)
-        self.yy = tf.expand_dims(tf.cast(self.yy, 'float32'), 2)
-
-    def call(self, x, mask=None):
-        def batch_map(cords):
-            y = ((cords[..., 0] + 1.0) / 2.0) * self.image_size[0]
-            x = ((cords[..., 1] + 1.0) / 2.0) * self.image_size[1]
-            y = tf.reshape(y, (1, 1, -1))
-            x = tf.reshape(x, (1, 1, -1))
-            return tf.exp(-((self.yy - y) ** 2 + (self.xx - x) ** 2) / (2 * self.sigma ** 2))
-
-        x = tf.map_fn(batch_map, x, dtype='float32')
-        print (x.shape)
-        return x
-
-    def compute_output_shape(self, input_shape):
-        print (input_shape)
-        return tuple([input_shape[0], self.image_size[0], self.image_size[1], input_shape[1]])
-
-    def get_config(self):
-        config = {"sigma": self.sigma, "image_size": self.image_size}
-        base_config = super(GaussianFromPointsLayer, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
-
-
 def uniform_init(shape, constant=4.0, dtype='float32', partition_info=None):
     if len(shape) >= 4:
         stdev = np.sqrt(constant / ((shape[1] ** 2) * (shape[-1] + shape[-2])))
@@ -127,6 +168,7 @@ def uniform_init(shape, constant=4.0, dtype='float32', partition_info=None):
                 high=stdev * np.sqrt(3),
                 size=shape
             ).astype('float32')
+
 
 he_init = partial(uniform_init, constant=4.0)
 glorot_init = partial(uniform_init, constant=2.0)

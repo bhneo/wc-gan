@@ -1,4 +1,4 @@
-from gan.gan import GAN
+from archs.gan import GAN
 import tensorflow as tf
 import tensorflow.keras.backend as K
 

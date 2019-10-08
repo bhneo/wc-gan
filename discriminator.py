@@ -2,10 +2,11 @@ from tensorflow.python.keras.models import Input, Model
 from tensorflow.python.keras.layers import Dense, Activation, Conv2D, GlobalAveragePooling2D, Lambda, Dropout, Flatten
 from tensorflow.python.keras.layers import Add, Embedding, LeakyReLU
 
-from gan.layer_utils import resblock, dcblock
-from gan.conditional_layers import ConditionalConv11
+from gan.utils import resblock, dcblock
+from gan.layers.coloring import ConditionalConv11
 from gan.spectral_normalized_layers import SNConv2D, SNDense, SNConditionalConv11, SNEmbeding
-from gan.layer_utils import glorot_init, GlobalSumPooling2D
+from gan.layers.misc import GlobalSumPooling2D
+from gan.utils import glorot_init
 from functools import partial
 from tensorflow.python.keras import backend as K
 
@@ -15,7 +16,7 @@ from generator import create_norm
 def make_discriminator(input_image_shape, input_cls_shape=(1, ), block_sizes=(128, 128, 128, 128),
                        resamples=('DOWN', "DOWN", "SAME", "SAME"),
                        number_of_classes=10, type='AC_GAN',
-                       norm='n', decomposition='cholesky', whitten_group=1, coloring_group=1, iter_num=5, instance_norm=0,
+                       norm='n', decomposition='cholesky', whitten_m=1, coloring_m=1, iter_num=5, instance_norm=0,
                        coloring='n',
                        spectral=False,
                        fully_diff_spectral=False, spectral_iterations=1, conv_singular=True,
@@ -41,7 +42,7 @@ def make_discriminator(input_image_shape, input_cls_shape=(1, ), block_sizes=(12
         emb_layer = Embedding
 
     norm_layer = create_norm(norm=norm, coloring=coloring,
-                             decomposition=decomposition, iter_num=iter_num, whitten_group=whitten_group, coloring_group=coloring_group, instance_norm=instance_norm,
+                             decomposition=decomposition, iter_num=iter_num, whitten_m=whitten_m, coloring_m=coloring_m, instance_norm=instance_norm,
                              cls=cls, number_of_classes=number_of_classes,
                              conditional_conv_layer=cond_conv_layer, uncoditional_conv_layer=conv_layer,
                              filters_emb=filters_emb)

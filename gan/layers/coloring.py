@@ -1,416 +1,19 @@
 import tensorflow as tf
-import numpy as np
-
-from tensorflow.python.keras.layers import Layer, InputSpec
+from tensorflow.python.keras import activations
+from tensorflow.python.keras import backend as K
 from tensorflow.python.keras import initializers, regularizers, constraints
 from tensorflow.python.keras.backend import _preprocess_padding
-from tensorflow.python.keras import backend as K
+from tensorflow.python.keras.layers import Conv2D, Add
+from tensorflow.python.keras.layers import Layer
 from tensorflow.python.keras.utils import conv_utils
-from tensorflow.python.keras import activations
-from tensorflow.python.keras.layers import BatchNormalization, Conv2D, UpSampling2D, Activation, Add, AveragePooling2D, Reshape, LeakyReLU
-from layer_utils import he_init, glorot_init
-from tensorflow.python.keras.optimizers import Adam
-from tensorflow.python.keras.utils import tf_utils
-from tensorflow.python.framework import ops
-from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import math_ops
-from tensorflow.python.ops import state_ops
-from tensorflow.python.ops import variables as tf_variables
 
-
-class ConditionalAdamOptimizer(Adam):
-    def __init__(self, lr_decay_schedule=None, **kwargs):
-        super(ConditionalAdamOptimizer, self).__init__(**kwargs)
-        self.lr_decay_schedule = lr_decay_schedule
-
-        if lr_decay_schedule.startswith('dropatc'):
-            drop_at = int(lr_decay_schedule.replace('dropatc', ''))
-            drop_at_generator = drop_at * 1000
-            self.lr_decay_schedule_generator = lambda iter: tf.where(K.less(iter, drop_at_generator), 1.,  0.1)
-        else:
-            self.lr_decay_schedule_generator = lambda iter: 1.
-
-    def get_updates(self, loss, params):
-        conditional_params = [param for param in params if '_repart_c' in param.name]
-        unconditional_params = [param for param in params if '_repart_c' not in param.name]
-
-        # print (conditional_params)
-        # print (unconditional_params)
-
-        print (len(params))
-        print (len(conditional_params))
-        print (len(unconditional_params))
-
-              
-
-        lr = self.lr
-        self.lr = self.lr_decay_schedule_generator(self.iterations) * lr
-        updates = super(ConditionalAdamOptimizer, self).get_updates(loss, conditional_params)[1:]
-        self.lr = lr
-        updates += super(ConditionalAdamOptimizer, self).get_updates(loss, unconditional_params)
-
-        #updates.append(K.update_sub(self.iterations, 1))
-
-        return updates
-
-
-class ConditionalInstanceNormalization(Layer):
-    """Conditional Instance normalization layer.
-    Normalize the activations of the previous layer at each step,
-    i.e. applies a transformation that maintains the mean activation
-    close to 0 and the activation standard deviation close to 1.
-    Each class has it own normalization parametes.
-    # Arguments
-        number_of_classes: Number of classes, 10 for cifar10.
-        axis: Integer, the axis that should be normalized
-            (typically the features axis).
-            For instance, after a `Conv2D` layer with
-            `data_format="channels_first"`,
-            set `axis=1` in `InstanceNormalization`.
-            Setting `axis=None` will normalize all values in each instance of the batch.
-            Axis 0 is the batch dimension. `axis` cannot be set to 0 to avoid errors.
-        epsilon: Small float added to variance to avoid dividing by zero.
-        center: If True, add offset of `beta` to normalized tensor.
-            If False, `beta` is ignored.
-        scale: If True, multiply by `gamma`.
-            If False, `gamma` is not used.
-            When the next layer is linear (also e.g. `nn.relu`),
-            this can be disabled since the scaling
-            will be done by the next layer.
-        beta_initializer: Initializer for the beta weight.
-        gamma_initializer: Initializer for the gamma weight.
-        beta_regularizer: Optional regularizer for the beta weight.
-        gamma_regularizer: Optional regularizer for the gamma weight.
-        beta_constraint: Optional constraint for the beta weight.
-        gamma_constraint: Optional constraint for the gamma weight.
-    # Input shape
-        Arbitrary. Use the keyword argument `input_shape`
-        (tuple of integers, does not include the samples axis)
-        when using this layer as the first layer in a model.
-    # Output shape
-        Same shape as input.
-    # References
-        - [A Learned Representation For Artistic Style](https://arxiv.org/abs/1610.07629)
-    """
-    def __init__(self,
-                 number_of_classes,
-                 axis=None,
-                 epsilon=1e-3,
-                 center=True,
-                 scale=True,
-                 beta_initializer='zeros',
-                 gamma_initializer='ones',
-                 beta_regularizer=None,
-                 gamma_regularizer=None,
-                 beta_constraint=None,
-                 gamma_constraint=None,
-                 **kwargs):
-        super(ConditionalInstanceNormalization, self).__init__(**kwargs)
-        self.number_of_classes = number_of_classes
-        self.supports_masking = True
-        self.axis = axis
-        self.epsilon = epsilon
-        self.center = center
-        self.scale = scale
-        self.beta_initializer = initializers.get(beta_initializer)
-        self.gamma_initializer = initializers.get(gamma_initializer)
-        self.beta_regularizer = regularizers.get(beta_regularizer)
-        self.gamma_regularizer = regularizers.get(gamma_regularizer)
-        self.beta_constraint = constraints.get(beta_constraint)
-        self.gamma_constraint = constraints.get(gamma_constraint)
-
-    def build(self, input_shape):
-        ndim = len(input_shape[0])
-        cls = input_shape[1]
-        if len(cls) != 2:
-            raise ValueError("Classes should be one dimensional")
-
-        if self.axis == 0:
-            raise ValueError('Axis cannot be zero')
-
-        if (self.axis is not None) and (ndim == 2):
-            raise ValueError('Cannot specify axis for rank 1 tensor')
-
-        if self.axis is None:
-            shape = (self.number_of_classes, 1)
-        else:
-            shape = (self.number_of_classes, input_shape[0][self.axis])
-
-        if self.scale:
-            self.gamma = self.add_weight(shape=shape,
-                                         name='gamma',
-                                         initializer=self.gamma_initializer,
-                                         regularizer=self.gamma_regularizer,
-                                         constraint=self.gamma_constraint)
-        else:
-            self.gamma = None
-        if self.center:
-            self.beta = self.add_weight(shape=shape,
-                                        name='beta',
-                                        initializer=self.beta_initializer,
-                                        regularizer=self.beta_regularizer,
-                                        constraint=self.beta_constraint)
-        else:
-            self.beta = None
-        super(ConditionalInstanceNormalization, self).build(input_shape)
-
-    def call(self, inputs, training=None):
-        class_labels = K.squeeze(inputs[1], axis=1)
-        inputs = inputs[0]
-        input_shape = K.int_shape(inputs)
-        reduction_axes = list(range(0, len(input_shape)))
-
-        if (self.axis is not None):
-            del reduction_axes[self.axis]
-
-        del reduction_axes[0]
-
-        mean = K.mean(inputs, reduction_axes, keepdims=True)
-        stddev = K.std(inputs, reduction_axes, keepdims=True) + self.epsilon
-        normed = (inputs - mean) / stddev
-
-        broadcast_shape = [1] * len(input_shape)
-        broadcast_shape[0] = K.shape(inputs)[0]
-        if self.axis is not None:
-            broadcast_shape[self.axis] = input_shape[self.axis]
-
-        if self.scale:
-            broadcast_gamma = K.reshape(K.gather(self.gamma, class_labels), broadcast_shape)
-            normed = normed * broadcast_gamma
-        if self.center:
-            broadcast_beta = K.reshape(K.gather(self.beta, class_labels), broadcast_shape)
-            normed = normed + broadcast_beta
-        return normed
-
-    def compute_output_shape(self, input_shape):
-        return input_shape[0]
-
-    def get_config(self):
-        config = {
-            'number_of_classes': self.number_of_classes,
-            'axis': self.axis,
-            'epsilon': self.epsilon,
-            'center': self.center,
-            'scale': self.scale,
-            'beta_initializer': initializers.serialize(self.beta_initializer),
-            'gamma_initializer': initializers.serialize(self.gamma_initializer),
-            'beta_regularizer': regularizers.serialize(self.beta_regularizer),
-            'gamma_regularizer': regularizers.serialize(self.gamma_regularizer),
-            'beta_constraint': constraints.serialize(self.beta_constraint),
-            'gamma_constraint': constraints.serialize(self.gamma_constraint)
-        }
-        base_config = super(ConditionalInstanceNormalization, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
-
-
-class ConditinalBatchNormalization(Layer):
-    """Batch normalization layer (Ioffe and Szegedy, 2014).
-    Normalize the activations of the previous layer at each batch,
-    i.e. applies a transformation that maintains the mean activation
-    close to 0 and the activation standard deviation close to 1.
-    # Arguments
-        axis: Integer, the axis that should be normalized
-            (typically the features axis).
-            For instance, after a `Conv2D` layer with
-            `data_format="channels_first"`,
-            set `axis=1` in `BatchNormalization`.
-        momentum: Momentum for the moving average.
-        epsilon: Small float added to variance to avoid dividing by zero.
-        center: If True, add offset of `beta` to normalized tensor.
-            If False, `beta` is ignored.
-        scale: If True, multiply by `gamma`.
-            If False, `gamma` is not used.
-            When the next layer is linear (also e.g. `nn.relu`),
-            this can be disabled since the scaling
-            will be done by the next layer.
-        beta_initializer: Initializer for the beta weight.
-        gamma_initializer: Initializer for the gamma weight.
-        moving_mean_initializer: Initializer for the moving mean.
-        moving_variance_initializer: Initializer for the moving variance.
-        beta_regularizer: Optional regularizer for the beta weight.
-        gamma_regularizer: Optional regularizer for the gamma weight.
-        beta_constraint: Optional constraint for the beta weight.
-        gamma_constraint: Optional constraint for the gamma weight.
-    # Input shape
-        Arbitrary. Use the keyword argument `input_shape`
-        (tuple of integers, does not include the samples axis)
-        when using this layer as the first layer in a model.
-    # Output shape
-        Same shape as input.
-    # References
-        - [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167)
-    """
-    def __init__(self,
-                 number_of_classes,
-                 axis=-1,
-                 momentum=0.99,
-                 epsilon=1e-3,
-                 center=True,
-                 scale=True,
-                 beta_initializer='zeros',
-                 gamma_initializer='ones',
-                 moving_mean_initializer='zeros',
-                 moving_variance_initializer='ones',
-                 beta_regularizer=None,
-                 gamma_regularizer=None,
-                 beta_constraint=None,
-                 gamma_constraint=None,
-                 **kwargs):
-        super(ConditinalBatchNormalization, self).__init__(**kwargs)
-        self.number_of_classes = number_of_classes
-        self.supports_masking = True
-        self.axis = axis
-        self.momentum = momentum
-        self.epsilon = epsilon
-        self.center = center
-        self.scale = scale
-        self.beta_initializer = initializers.get(beta_initializer)
-        self.gamma_initializer = initializers.get(gamma_initializer)
-        self.moving_mean_initializer = initializers.get(moving_mean_initializer)
-        self.moving_variance_initializer = initializers.get(moving_variance_initializer)
-        self.beta_regularizer = regularizers.get(beta_regularizer)
-        self.gamma_regularizer = regularizers.get(gamma_regularizer)
-        self.beta_constraint = constraints.get(beta_constraint)
-        self.gamma_constraint = constraints.get(gamma_constraint)
-
-    def build(self, input_shape):
-        input_shape = input_shape[0]
-        dim = input_shape[self.axis]
-        if dim is None:
-            raise ValueError('Axis ' + str(self.axis) + ' of '
-                             'input tensor should have a defined dimension '
-                             'but the layer received an input with shape ' +
-                             str(input_shape) + '.')
-        shape = (dim, )
-
-        if self.scale:
-            self.gamma = self.add_weight((self.number_of_classes, dim),
-                                         name='gamma',
-                                         initializer=self.gamma_initializer,
-                                         regularizer=self.gamma_regularizer,
-                                         constraint=self.gamma_constraint)
-        else:
-            self.gamma = None
-
-        if self.center:
-            self.beta = self.add_weight((self.number_of_classes, dim),
-                                        name='beta',
-                                        initializer=self.beta_initializer,
-                                        regularizer=self.beta_regularizer,
-                                        constraint=self.beta_constraint)
-        else:
-            self.beta = None
-        self.moving_mean = self.add_weight(
-            shape,
-            name='moving_mean',
-            initializer=self.moving_mean_initializer,
-            trainable=False)
-        self.moving_variance = self.add_weight(
-            shape,
-            name='moving_variance',
-            initializer=self.moving_variance_initializer,
-            trainable=False)
-        self.built = True
-
-    def call(self, inputs, training=None):
-        class_labels = K.squeeze(inputs[1], axis=1)
-        inputs = inputs[0]
-        input_shape = K.int_shape(inputs)
-        # Prepare broadcasting shape.
-        ndim = len(input_shape)
-        reduction_axes = list(range(len(input_shape)))
-        del reduction_axes[self.axis]
-        broadcast_shape = [1] * len(input_shape)
-        broadcast_shape[self.axis] = input_shape[self.axis]
-
-        # Determines whether broadcasting is needed.
-        needs_broadcasting = (sorted(reduction_axes) != range(ndim)[:-1])
-
-        param_broadcast = [1] * len(input_shape)
-        param_broadcast[self.axis] = input_shape[self.axis]
-        param_broadcast[0] = K.shape(inputs)[0]
-        if self.scale:
-            broadcast_gamma = K.reshape(K.gather(self.gamma, class_labels), param_broadcast)
-        else:
-            broadcast_gamma = None
-
-        if self.center:
-            broadcast_beta = K.reshape(K.gather(self.beta, class_labels), param_broadcast)
-        else:
-            broadcast_beta = None
-
-        normed, mean, variance = K.normalize_batch_in_training(
-            inputs, gamma=None, beta=None,
-            reduction_axes=reduction_axes, epsilon=self.epsilon)
-
-        if training in {0, False}:
-            return normed
-        else:
-            self.add_update([K.moving_average_update(self.moving_mean,
-                                                     mean,
-                                                     self.momentum),
-                             K.moving_average_update(self.moving_variance,
-                                                     variance,
-                                                     self.momentum)],
-                            inputs)
-
-            def normalize_inference():
-                if needs_broadcasting:
-                    # In this case we must explictly broadcast all parameters.
-                    broadcast_moving_mean = K.reshape(self.moving_mean,
-                                                      broadcast_shape)
-                    broadcast_moving_variance = K.reshape(self.moving_variance,
-                                                          broadcast_shape)
-                    return K.batch_normalization(
-                        inputs,
-                        broadcast_moving_mean,
-                        broadcast_moving_variance,
-                        beta=None,
-                        gamma=None,
-                        epsilon=self.epsilon)
-                else:
-                    return K.batch_normalization(
-                        inputs,
-                        self.moving_mean,
-                        self.moving_variance,
-                        beta=None,
-                        gamma=None,
-                        epsilon=self.epsilon)
-
-        # Pick the normalized form corresponding to the training phase.
-        out = K.in_train_phase(normed,
-                                normalize_inference,
-                                training=training)
-        return out * broadcast_gamma + broadcast_beta
-
-    def compute_output_shape(self, input_shape):
-        return input_shape[0]
-
-    def get_config(self):
-        config = {
-            'number_of_classes': self.number_of_classes,
-            'axis': self.axis,
-            'momentum': self.momentum,
-            'epsilon': self.epsilon,
-            'center': self.center,
-            'scale': self.scale,
-            'beta_initializer': initializers.serialize(self.beta_initializer),
-            'gamma_initializer': initializers.serialize(self.gamma_initializer),
-            'moving_mean_initializer': initializers.serialize(self.moving_mean_initializer),
-            'moving_variance_initializer': initializers.serialize(self.moving_variance_initializer),
-            'beta_regularizer': regularizers.serialize(self.beta_regularizer),
-            'gamma_regularizer': regularizers.serialize(self.gamma_regularizer),
-            'beta_constraint': constraints.serialize(self.beta_constraint),
-            'gamma_constraint': constraints.serialize(self.gamma_constraint)
-        }
-        base_config = super(ConditinalBatchNormalization, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
+from utils import he_init, glorot_init
 
 
 class ConditionalCenterScale(Layer):
     def __init__(self,
                  number_of_classes,
-                 axis = -1,
+                 axis=-1,
                  center=True,
                  scale=True,
                  beta_initializer='zeros',
@@ -474,7 +77,7 @@ class ConditionalCenterScale(Layer):
         input_shape = K.int_shape(inputs)
         reduction_axes = list(range(0, len(input_shape)))
 
-        if (self.axis is not None):
+        if self.axis is not None:
             del reduction_axes[self.axis]
 
         del reduction_axes[0]
@@ -574,7 +177,7 @@ class CenterScale(Layer):
         input_shape = K.int_shape(inputs)
         reduction_axes = list(range(0, len(input_shape)))
 
-        if (self.axis is not None):
+        if self.axis is not None:
             del reduction_axes[self.axis]
 
         del reduction_axes[0]
@@ -607,364 +210,6 @@ class CenterScale(Layer):
         }
         base_config = super(CenterScale, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
-
-
-class DecorelationNormalization(Layer):
-    def __init__(self,
-                 axis=-1,
-                 momentum=0.99,
-                 epsilon=1e-3,
-                 group=1,
-                 decomposition='cholesky',
-                 iter_num=5,
-                 instance_norm=0,
-                 renorm=False,
-                 moving_mean_initializer='zeros',
-                 moving_cov_initializer='identity',
-                 **kwargs):
-        assert decomposition in ['cholesky', 'zca', 'pca', 'iter_norm']
-        super(DecorelationNormalization, self).__init__(**kwargs)
-        self.supports_masking = True
-        self.momentum = momentum
-        self.epsilon = epsilon
-        self.group = group
-        self.moving_mean_initializer = initializers.get(moving_mean_initializer)
-        self.moving_cov_initializer = initializers.get(moving_cov_initializer)
-        self.axis = axis
-        self.renorm = renorm
-        self.decomposition = decomposition
-        self.iter_num = iter_num
-        self.instance_norm = instance_norm
-
-    def cov_initializer(self, shape, dtype=tf.float32, partition_info=None):
-        moving_convs = []
-        for i in range(shape[0]):
-            moving_conv = tf.expand_dims(tf.eye(shape[1], dtype=dtype), 0)
-            moving_convs.append(moving_conv)
-
-        moving_convs = tf.concat(moving_convs, 0)
-        return moving_convs
-
-    def build(self, input_shape):
-        dim = input_shape.as_list()[self.axis]
-        if dim is None:
-            raise ValueError('Axis ' + str(self.axis) + ' of '
-                             'input tensor should have a defined dimension '
-                             'but the layer received an input with shape ' +
-                             str(input_shape) + '.')
-
-        self.m_per_group = dim // self.group
-        assert (dim % self.m_per_group == 0), 'group incorrect!'
-
-        self.moving_mean = self.add_weight(shape=(dim, 1),
-                                           name='moving_mean',
-                                           synchronization=tf_variables.VariableSynchronization.ON_READ,
-                                           initializer=self.moving_mean_initializer,
-                                           trainable=False,
-                                           aggregation=tf_variables.VariableAggregation.MEAN)
-        self.moving_covs = self.add_weight(shape=(self.group, self.m_per_group, self.m_per_group),
-                                           name='moving_variance',
-                                           synchronization=tf_variables.VariableSynchronization.ON_READ,
-                                           initializer=self.cov_initializer,
-                                           trainable=False,
-                                           aggregation=tf_variables.VariableAggregation.MEAN)
-
-        self.built = True
-
-    def call(self, inputs, training=None):
-        _, w, h, c = K.int_shape(inputs)
-        bs = K.shape(inputs)[0]
-
-        if self.instance_norm:
-            x_t = tf.transpose(inputs, (0, 3, 1, 2))
-            x_flat = tf.reshape(x_t, (-1, c, w*h))
-            m = tf.reduce_mean(x_flat, axis=1, keepdims=True)
-        else:
-            x_t = tf.transpose(inputs, (3, 0, 1, 2))
-            # BxCxHxW -> CxB*H*W
-            x_flat = tf.reshape(x_t, (c, -1))
-            m = tf.reduce_mean(x_flat, axis=1, keepdims=True)
-            m = K.in_train_phase(m, self.moving_mean)
-
-        # Covariance
-        f = x_flat - m
-        if self.decomposition == 'cholesky':
-            def get_inv_sqrt(ff, m_per_group):
-                with tf.device('/cpu:0'):
-                    sqrt = tf.linalg.cholesky(ff)
-                if self.instance_norm:
-                    inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.tile(tf.expand_dims(tf.expand_dims(tf.eye(m_per_group), 0), 0),
-                                                                        [bs, self.group, 1, 1]))
-                else:
-                    inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.tile(tf.expand_dims(tf.eye(m_per_group), 0),
-                                                                        [self.group, 1, 1]))
-                return sqrt, inv_sqrt
-        elif self.decomposition == 'zca':
-            def get_inv_sqrt(ff, m_per_group):
-                with tf.device('/cpu:0'):
-                    S, U, _ = tf.svd(ff + tf.eye(m_per_group)*self.epsilon, full_matrices=True)
-                D = tf.linalg.diag(tf.pow(S, -0.5))
-                inv_sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
-                D = tf.linalg.diag(tf.pow(S, 0.5))
-                sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
-                return sqrt, inv_sqrt
-        elif self.decomposition == 'pca':
-            def get_inv_sqrt(ff, m_per_group):
-                with tf.device('/cpu:0'):
-                    S, U, _ = tf.svd(ff + tf.eye(m_per_group)*self.epsilon, full_matrices=True)
-                D = tf.linalg.diag(tf.pow(S, -0.5))
-                inv_sqrt = tf.matmul(D, U, transpose_b=True)
-                D = tf.linalg.diag(tf.pow(S, 0.5))
-                sqrt = tf.matmul(D, U, transpose_b=True)
-                return sqrt, inv_sqrt
-        elif self.decomposition == 'iter_norm':
-            def get_inv_sqrt(ff, m_per_group):
-                trace = tf.linalg.trace(ff)
-                trace = tf.expand_dims(trace, [-1])
-                trace = tf.expand_dims(trace, [-1])
-                sigma_norm = ff / trace
-
-                projection = tf.eye(m_per_group)
-                projection = tf.expand_dims(projection, 0)
-                projection = tf.tile(projection, [self.group, 1, 1])
-                for i in range(self.iter_num):
-                    projection = (3 * projection - projection * projection * projection * sigma_norm) / 2
-
-                return None, projection / tf.sqrt(trace)
-        else:
-            assert False
-
-        def train():
-            ff_aprs = []
-            for i in range(self.group):
-                start_index = i * self.m_per_group
-                end_index = np.min(((i + 1) * self.m_per_group, c))
-                if self.instance_norm:
-                    centered = f[:, start_index:end_index, :]
-                    ff_apr = tf.matmul(centered, centered, transpose_b=True)
-                else:
-                    centered = f[start_index:end_index, :]
-                    ff_apr = tf.matmul(centered, centered, transpose_b=True)
-                ff_apr = tf.expand_dims(ff_apr, 0)
-                ff_aprs.append(ff_apr)
-
-            ff_aprs = tf.concat(ff_aprs, 0)
-            ff_aprs /= (tf.cast(bs * w * h, tf.float32) - 1.)
-
-            if self.instance_norm:
-                ff_aprs = tf.transpose(ff_aprs, (1, 0, 2, 3))
-                ff_aprs = (1 - self.epsilon) * ff_aprs + tf.expand_dims(tf.expand_dims(tf.eye(self.m_per_group) * self.epsilon, 0), 0)
-            else:
-                ff_aprs = (1 - self.epsilon) * ff_aprs + tf.expand_dims(tf.eye(self.m_per_group) * self.epsilon, 0)
-                self.add_update([K.moving_average_update(self.moving_mean,
-                                                         m,
-                                                         self.momentum),
-                                 K.moving_average_update(self.moving_covs,
-                                                         ff_aprs,
-                                                         self.momentum)],
-                                 inputs)
-
-            if self.renorm:
-                l, l_inv = get_inv_sqrt(ff_aprs, self.m_per_group)
-                ff_mov = (1 - self.epsilon) * self.moving_covs + tf.eye(self.m_per_group) * self.epsilon
-                _, l_mov_inverse = get_inv_sqrt(ff_mov, self.m_per_group)
-                l_ndiff = K.stop_gradient(l)
-                return tf.matmul(tf.matmul(l_mov_inverse, l_ndiff), l_inv)
-
-            return get_inv_sqrt(ff_aprs, self.m_per_group)[1]
-
-        def test():
-            ff_mov = (1 - self.epsilon) * self.moving_covs + tf.eye(self.m_per_group) * self.epsilon
-            return get_inv_sqrt(ff_mov, self.m_per_group)[1]
-
-        if self.instance_norm == 1:
-            inv_sqrt = train()
-            f = tf.reshape(f, [-1, self.group, self.m_per_group, w*h])
-            f_hat = tf.matmul(inv_sqrt, f)
-            decorelated = K.reshape(f_hat, [bs, c, w, h])
-            decorelated = tf.transpose(decorelated, [0, 2, 3, 1])
-        else:
-            inv_sqrt = K.in_train_phase(train, test)
-            f = tf.reshape(f, [self.group, self.m_per_group, -1])
-            f_hat = tf.matmul(inv_sqrt, f)
-            decorelated = K.reshape(f_hat, [c, bs, w, h])
-            decorelated = tf.transpose(decorelated, [1, 2, 3, 0])
-
-        return decorelated
-
-    def get_config(self):
-        config = {
-            'axis': self.axis,
-            'momentum': self.momentum,
-            'epsilon': self.epsilon,
-            'moving_mean_initializer': initializers.serialize(self.moving_mean_initializer),
-            'moving_variance_initializer': initializers.serialize(self.moving_cov_initializer)
-        }
-        base_config = super(DecorelationNormalization, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
-
-
-def test_dbn_eager():
-    tf.enable_eager_execution()
-    data = tf.random.normal([128, 8, 8, 16])
-    # K.set_learning_phase(1)
-    decor = DecorelationNormalization(group=4, instance_norm=1)
-    out = decor(data)
-    out = tf.reduce_mean(out)
-    print(out)
-    print()
-
-
-def test_dbn():
-    inputs = tf.keras.layers.Input([8, 8, 16])
-    data = np.random.normal(0, 1, [128, 8, 8, 16])
-    # K.set_learning_phase(1)
-    decor = DecorelationNormalization(group=1, instance_norm=1)
-    out = decor(inputs)
-    out = tf.reduce_mean(out)
-    sess = K.get_session()
-    sess.run(tf.global_variables_initializer())
-    K.set_learning_phase(1)
-    outputs = sess.run([out], feed_dict={inputs: data})
-    print(np.mean(outputs))
-
-
-# class DecorelationNormalization(Layer):
-#     def __init__(self,
-#                  axis=-1,
-#                  momentum=0.99,
-#                  epsilon=1e-3,
-#                  group=1,
-#                  decomposition='cholesky',
-#                  renorm=False,
-#                  moving_mean_initializer='zeros',
-#                  moving_cov_initializer='identity',
-#                  **kwargs):
-#         assert decomposition in ['cholesky', 'zca', 'pca']
-#         super(DecorelationNormalization, self).__init__(**kwargs)
-#         self.supports_masking = True
-#         self.momentum = momentum
-#         self.epsilon = epsilon
-#         self.moving_mean_initializer = initializers.get(moving_mean_initializer)
-#         self.moving_cov_initializer = initializers.get(moving_cov_initializer)
-#         self.axis = axis
-#         self.renorm = renorm
-#         self.decomposition = decomposition
-#
-#     def build(self, input_shape):
-#         dim = input_shape.as_list()[self.axis]
-#         if dim is None:
-#             raise ValueError('Axis ' + str(self.axis) + ' of '
-#                                                         'input tensor should have a defined dimension '
-#                                                         'but the layer received an input with shape ' +
-#                              str(input_shape) + '.')
-#         self.moving_mean = self.add_weight(shape=(dim, 1),
-#                                            name='moving_mean',
-#                                            synchronization=tf_variables.VariableSynchronization.ON_READ,
-#                                            initializer=self.moving_mean_initializer,
-#                                            trainable=False,
-#                                            aggregation=tf_variables.VariableAggregation.MEAN)
-#         self.moving_cov = self.add_weight(shape=(dim, dim),
-#                                           name='moving_variance',
-#                                           synchronization=tf_variables.VariableSynchronization.ON_READ,
-#                                           initializer=self.moving_cov_initializer,
-#                                           trainable=False,
-#                                           aggregation=tf_variables.VariableAggregation.MEAN)
-#         self.built = True
-#
-#     def call(self, inputs, training=None):
-#         _, w, h, c = K.int_shape(inputs)
-#         bs = K.shape(inputs)[0]
-#
-#         x_t = tf.transpose(inputs, (3, 0, 1, 2))
-#
-#         # BxCxHxW -> CxB*H*W
-#         x_flat = tf.reshape(x_t, (c, -1))
-#
-#         # Covariance
-#         m = tf.reduce_mean(x_flat, axis=1, keepdims=True)
-#         m = K.in_train_phase(m, self.moving_mean)
-#         f = x_flat - m
-#
-#         if self.decomposition == 'cholesky':
-#             def get_inv_sqrt(ff):
-#                 with tf.device('/cpu:0'):
-#                     sqrt = tf.cholesky(ff)
-#                 inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.eye(c))
-#                 return sqrt, inv_sqrt
-#         elif self.decomposition == 'zca':
-#             def get_inv_sqrt(ff):
-#                 with tf.device('/cpu:0'):
-#                     S, U, _ = tf.svd(ff + tf.eye(c) * self.epsilon, full_matrices=True)
-#                 D = tf.diag(tf.pow(S, -0.5))
-#                 inv_sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
-#                 D = tf.diag(tf.pow(S, 0.5))
-#                 sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
-#                 return sqrt, inv_sqrt
-#         elif self.decomposition == 'pca':
-#             def get_inv_sqrt(ff):
-#                 with tf.device('/cpu:0'):
-#                     S, U, _ = tf.svd(ff + tf.eye(c) * self.epsilon, full_matrices=True)
-#                 D = tf.diag(tf.pow(S, -0.5))
-#                 inv_sqrt = tf.matmul(D, U, transpose_b=True)
-#                 D = tf.diag(tf.pow(S, 0.5))
-#                 sqrt = tf.matmul(D, U, transpose_b=True)
-#                 return sqrt, inv_sqrt
-#         else:
-#             assert False
-#
-#         def train():
-#             ff_apr = tf.matmul(f, f, transpose_b=True) / (tf.cast(bs * w * h, tf.float32) - 1.)
-#             self.add_update([K.moving_average_update(self.moving_mean,
-#                                                      m,
-#                                                      self.momentum),
-#                              K.moving_average_update(self.moving_cov,
-#                                                      ff_apr,
-#                                                      self.momentum)],
-#                             inputs)
-#             ff_apr_shrinked = (1 - self.epsilon) * ff_apr + tf.eye(c) * self.epsilon
-#
-#             if self.renorm:
-#                 l, l_inv = get_inv_sqrt(ff_apr_shrinked)
-#                 ff_mov = (1 - self.epsilon) * self.moving_cov + tf.eye(c) * self.epsilon
-#                 _, l_mov_inverse = get_inv_sqrt(ff_mov)
-#                 l_ndiff = K.stop_gradient(l)
-#                 return tf.matmul(tf.matmul(l_mov_inverse, l_ndiff), l_inv)
-#
-#             return get_inv_sqrt(ff_apr_shrinked)[1]
-#
-#         def test():
-#             ff_mov = (1 - self.epsilon) * self.moving_cov + tf.eye(c) * self.epsilon
-#             return get_inv_sqrt(ff_mov)[1]
-#
-#         inv_sqrt = K.in_train_phase(train, test)
-#         f_hat = tf.matmul(inv_sqrt, f)
-#
-#         decorelated = K.reshape(f_hat, [c, bs, w, h])
-#         decorelated = tf.transpose(decorelated, [1, 2, 3, 0])
-#
-#         return decorelated
-#
-#     def get_config(self):
-#         config = {
-#             'axis': self.axis,
-#             'momentum': self.momentum,
-#             'epsilon': self.epsilon,
-#             'moving_mean_initializer': initializers.serialize(self.moving_mean_initializer),
-#             'moving_variance_initializer': initializers.serialize(self.moving_cov_initializer)
-#         }
-#         base_config = super(DecorelationNormalization, self).get_config()
-#         return dict(list(base_config.items()) + list(config.items()))
-
-class Split(Layer):
-    def __init__(self, num_or_size_splits, axis, **kwargs):
-        super(Split, self).__init__(**kwargs)
-        self.num_or_size_splits = num_or_size_splits
-        self.axis = axis
-
-    def call(self, inputs):
-        splits = tf.split(inputs, self.num_or_size_splits, self.axis)
-        return splits
 
 
 class ConditionalConv11(Layer):
@@ -1145,20 +390,20 @@ class ConditionalConv11(Layer):
 
 class FactorizedConv11(Layer):
     def __init__(self, filters,
-             number_of_classes,
-             filters_emb,
-             strides=1,
-             data_format=None,
-             activation=None,
-             use_bias=True,
-             kernel_initializer='glorot_uniform',
-             bias_initializer='zeros',
-             kernel_regularizer=None,
-             bias_regularizer=None,
-             activity_regularizer=None,
-             kernel_constraint=None,
-             bias_constraint=None,
-             **kwargs):
+                 number_of_classes,
+                 filters_emb,
+                 strides=1,
+                 data_format=None,
+                 activation=None,
+                 use_bias=True,
+                 kernel_initializer='glorot_uniform',
+                 bias_initializer='zeros',
+                 kernel_regularizer=None,
+                 bias_regularizer=None,
+                 activity_regularizer=None,
+                 kernel_constraint=None,
+                 bias_constraint=None,
+                 **kwargs):
         super(FactorizedConv11, self).__init__(**kwargs)
         self.filters = filters
         self.filters_emb = filters_emb
@@ -1330,18 +575,18 @@ class FactorizedConv11(Layer):
 
 class NINConv11(Layer):
     def __init__(self, filters, locnet,
-             strides=1,
-             data_format=None,
-             activation=None,
-             use_bias=True,
-             kernel_initializer='glorot_uniform',
-             bias_initializer='zeros',
-             kernel_regularizer=None,
-             bias_regularizer=None,
-             activity_regularizer=None,
-             kernel_constraint=None,
-             bias_constraint=None,
-             **kwargs):
+                 strides=1,
+                 data_format=None,
+                 activation=None,
+                 use_bias=True,
+                 kernel_initializer='glorot_uniform',
+                 bias_initializer='zeros',
+                 kernel_regularizer=None,
+                 bias_regularizer=None,
+                 activity_regularizer=None,
+                 kernel_constraint=None,
+                 bias_constraint=None,
+                 **kwargs):
         super(NINConv11, self).__init__(**kwargs)
         self.filters = filters
         self.locnet = locnet
@@ -1359,8 +604,6 @@ class NINConv11(Layer):
         self.activity_regularizer = regularizers.get(activity_regularizer)
         self.kernel_constraint = constraints.get(kernel_constraint)
         self.bias_constraint = constraints.get(bias_constraint)
-
-
 
     def build(self, input_shape):
         if self.data_format == 'channels_first':
@@ -1498,22 +741,22 @@ class NINConv11(Layer):
 
 class ConditionalConv2D(Layer):
     def __init__(self, filters,
-             kernel_size,
-             number_of_classes,
-             strides=1,
-             padding='valid',
-             data_format=None,
-             dilation_rate=1,
-             activation=None,
-             use_bias=True,
-             kernel_initializer='glorot_uniform',
-             bias_initializer='zeros',
-             kernel_regularizer=None,
-             bias_regularizer=None,
-             activity_regularizer=None,
-             kernel_constraint=None,
-             bias_constraint=None,
-             **kwargs):
+                 kernel_size,
+                 number_of_classes,
+                 strides=1,
+                 padding='valid',
+                 data_format=None,
+                 dilation_rate=1,
+                 activation=None,
+                 use_bias=True,
+                 kernel_initializer='glorot_uniform',
+                 bias_initializer='zeros',
+                 kernel_regularizer=None,
+                 bias_regularizer=None,
+                 activity_regularizer=None,
+                 kernel_constraint=None,
+                 bias_constraint=None,
+                 **kwargs):
         super(ConditionalConv2D, self).__init__(**kwargs)
         self.filters = filters
         self.kernel_size = conv_utils.normalize_tuple(kernel_size, 2, 'kernel_size')
@@ -1640,22 +883,22 @@ class ConditionalConv2D(Layer):
 
 class ConditionalDepthwiseConv2D(Layer):
     def __init__(self, filters,
-             kernel_size,
-             number_of_classes,
-             strides=1,
-             padding='valid',
-             data_format=None,
-             dilation_rate=1,
-             activation=None,
-             use_bias=True,
-             kernel_initializer='glorot_uniform',
-             bias_initializer='zeros',
-             kernel_regularizer=None,
-             bias_regularizer=None,
-             activity_regularizer=None,
-             kernel_constraint=None,
-             bias_constraint=None,
-             **kwargs):
+                 kernel_size,
+                 number_of_classes,
+                 strides=1,
+                 padding='valid',
+                 data_format=None,
+                 dilation_rate=1,
+                 activation=None,
+                 use_bias=True,
+                 kernel_initializer='glorot_uniform',
+                 bias_initializer='zeros',
+                 kernel_regularizer=None,
+                 bias_regularizer=None,
+                 activity_regularizer=None,
+                 kernel_constraint=None,
+                 bias_constraint=None,
+                 **kwargs):
         super(ConditionalDepthwiseConv2D, self).__init__(**kwargs)
         self.filters = filters
         self.kernel_size = conv_utils.normalize_tuple(kernel_size, 2, 'kernel_size')
@@ -1873,7 +1116,6 @@ class ConditionalDense(Layer):
         if self.activation is not None:
             return self.activation(output)
         return output
-
 
     def compute_output_shape(self, input_shape):
         input_shape = input_shape[0]

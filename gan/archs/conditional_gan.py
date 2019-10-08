@@ -8,12 +8,12 @@ import tensorflow.python.keras.backend as K
 from gan.dataset import UGANDataset
 from gan.args import parser_with_default_args
 from gan.train import Trainer
-from gan.ac_gan import AC_GAN
-from gan.conditional_layers import ConditionalInstanceNormalization
+from archs.ac_gan import AC_GAN
+from gan.layers.normalization import ConditionalInstanceNormalization
 
 import numpy as np
 from skimage.transform import resize
-from skimage.io import imread, imsave
+from skimage.io import imread
 import os
 
 from itertools import chain

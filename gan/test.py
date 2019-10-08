@@ -13,6 +13,7 @@ K.set_session(session)
 def deprocess_image(img):
     return (255 * ((img + 1) / 2.0)).astype(np.uint8)
 
+
 def generate_images(dataset, generator,  number_of_samples, out_index=-1, deprocess_fn=deprocess_image):
     result = []
 

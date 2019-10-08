@@ -1,5 +1,5 @@
 import tensorflow as tf
-from gan.gan import GAN
+from archs.gan import GAN
 from tensorflow.python.keras.models import Input
 
 

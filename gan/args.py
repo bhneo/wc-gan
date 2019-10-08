@@ -1,4 +1,5 @@
 import argparse
+from argparse import Namespace
 
 
 def parser_with_default_args():
@@ -81,14 +82,14 @@ def parser_with_default_args():
                              "n - None.")
     parser.add_argument("--d_instance_norm", default=0, type=int, choices=[0, 1], help='0:false 1:true')
     parser.add_argument("--d_decomposition", default='cholesky', choices=['cholesky', 'zca', 'pca', 'iter_norm'], help='')
-    parser.add_argument("--d_whitten_group", default=1, type=int, help='')
-    parser.add_argument("--d_coloring_group", default=1, type=int, help='')
+    parser.add_argument("--d_whitten_m", default=1, type=int, help='')
+    parser.add_argument("--d_coloring_m", default=1, type=int, help='')
     parser.add_argument("--d_iter_num", default=5, type=int, help='')
     parser.add_argument("--g_instance_norm", default=0, type=int, choices=[0, 1], help='0:false 1:true')
     parser.add_argument("--g_decomposition", default='cholesky', choices=['cholesky', 'zca', 'pca', 'iter_norm'],
                         help='')
-    parser.add_argument("--g_whitten_group", default=1, type=int, help='')
-    parser.add_argument("--g_coloring_group", default=1, type=int, help='')
+    parser.add_argument("--g_whitten_m", default=1, type=int, help='')
+    parser.add_argument("--g_coloring_m", default=1, type=int, help='')
     parser.add_argument("--g_iter_num", default=5, type=int, help='')
     parser.add_argument("--generator_batch_multiple", default=2, type=int,
                         help="Size of the generator batch, multiple of batch_size.")
@@ -117,6 +118,117 @@ def parser_with_default_args():
     args = parser.parse_args()
 
     return args
+
+
+def get_generator_params(args):
+    params = Namespace()
+    params.output_channels = 1 if args.dataset.endswith('mnist') else 3
+    params.input_cls_shape = (1,)
+
+    first_block_w = (7 if args.dataset.endswith('mnist') else (6 if args.dataset == 'stl10' else 4))
+    params.first_block_shape = (first_block_w, first_block_w, args.generator_filters)
+    if args.arch == 'res':
+        if args.dataset == 'tiny-imagenet':
+            params.block_sizes = [args.generator_filters, args.generator_filters, args.generator_filters,
+                                  args.generator_filters]
+            params.resamples = ("UP", "UP", "UP", "UP")
+        elif args.dataset.endswith('imagenet'):
+            params.block_sizes = [args.generator_filters, args.generator_filters,
+                                  args.generator_filters, args.generator_filters / 2, args.generator_filters / 4]
+
+            params.resamples = ("UP", "UP", "UP", "UP", "UP")
+        else:
+            params.block_sizes = tuple([args.generator_filters] * 2) if args.dataset.endswith('mnist') else tuple(
+                [args.generator_filters] * 3)
+            params.resamples = ("UP", "UP") if args.dataset.endswith('mnist') else ("UP", "UP", "UP")
+    else:
+        assert args.dataset != 'imagenet'
+        params.block_sizes = ([args.generator_filters, args.generator_filters / 2] if args.dataset.endswith('mnist')
+                              else [args.generator_filters, args.generator_filters / 2, args.generator_filters / 4])
+        params.resamples = ("UP", "UP") if args.dataset.endswith('mnist') else ("UP", "UP", "UP")
+    params.number_of_classes = 100 if args.dataset == 'cifar100' else (1000 if args.dataset == 'imagenet'
+                                                                       else (
+        200 if args.dataset == 'tiny-imagenet' else 10))
+
+    params.concat_cls = args.generator_concat_cls
+
+    params.block_norm = args.generator_block_norm
+    params.block_coloring = args.generator_block_coloring
+
+    params.last_norm = args.generator_last_norm
+    params.last_coloring = args.generator_last_coloring
+
+    params.decomposition = args.g_decomposition
+    params.whitten_m = args.g_whitten_m
+    params.coloring_m = args.g_coloring_m
+    params.iter_num = args.g_iter_num
+    params.instance_norm = args.g_instance_norm
+
+    params.spectral = args.generator_spectral
+    params.fully_diff_spectral = args.fully_diff_spectral
+    params.spectral_iterations = args.spectral_iterations
+    params.conv_singular = args.conv_singular
+
+    params.gan_type = args.gan_type
+
+    params.arch = args.arch
+    params.filters_emb = args.filters_emb
+
+    return params
+
+
+def get_discriminator_params(args):
+    params = Namespace()
+    params.input_image_shape = args.image_shape
+    params.input_cls_shape = (1,)
+    if args.arch == 'res':
+        if args.dataset == 'tiny-imagenet':
+            params.resamples = ("DOWN", "DOWN", "DOWN", "SAME", "SAME")
+            params.block_sizes = [args.discriminator_filters / 4, args.discriminator_filters / 2,
+                                  args.discriminator_filters,
+                                  args.discriminator_filters, args.discriminator_filters]
+        elif args.dataset.endswith('imagenet'):
+            params.block_sizes = [args.discriminator_filters / 16, args.discriminator_filters / 8,
+                                  args.discriminator_filters / 4,
+                                  args.discriminator_filters / 2, args.discriminator_filters,
+                                  args.discriminator_filters]
+            params.resamples = ("DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "SAME")
+        else:
+            params.block_sizes = tuple([args.discriminator_filters] * 4)
+            params.resamples = ('DOWN', "DOWN", "SAME", "SAME")
+    else:
+        params.block_sizes = [args.discriminator_filters / 8, args.discriminator_filters / 4,
+                              args.discriminator_filters / 4, args.discriminator_filters / 2,
+                              args.discriminator_filters / 2, args.discriminator_filters,
+                              args.discriminator_filters]
+        params.resamples = ('SAME', "DOWN", "SAME", "DOWN", "SAME", "DOWN", "SAME")
+    params.number_of_classes = 100 if args.dataset == 'cifar100' else (1000 if args.dataset == 'imagenet'
+                                                                       else (
+        200 if args.dataset == 'tiny-imagenet' else 10))
+
+    params.norm = args.discriminator_norm
+    params.coloring = args.discriminator_coloring
+
+    params.decomposition = args.d_decomposition
+    params.whitten_m = args.d_whitten_m
+    params.coloring_m = args.d_coloring_m
+    params.iter_num = args.d_iter_num
+    params.instance_norm = args.d_instance_norm
+
+    params.spectral = args.discriminator_spectral
+    params.fully_diff_spectral = args.fully_diff_spectral
+    params.spectral_iterations = args.spectral_iterations
+    params.conv_singular = args.conv_singular
+
+    params.type = args.gan_type
+
+    params.sum_pool = args.sum_pool
+    params.dropout = args.discriminator_dropout
+
+    params.arch = args.arch
+    params.filters_emb = args.filters_emb
+
+    return params
 
 
 if __name__ == '__main__':

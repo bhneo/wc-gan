@@ -6,17 +6,16 @@ sys.path.append(os.path.abspath('./gan'))
 
 from tensorflow.python.keras.optimizers import Adam
 from gan.dataset import LabeledArrayDataset
-from gan.args import parser_with_default_args
+from gan.args import parser_with_default_args, get_generator_params, get_discriminator_params
 from gan.train import Trainer
-from gan.ac_gan import AC_GAN
-from gan.projective_gan import ProjectiveGAN
-from gan.gan import GAN
+from archs.ac_gan import AC_GAN
+from archs.projective_gan import ProjectiveGAN
+from archs.gan import GAN
 
 import json
 from functools import partial
 from scorer import compute_scores
 from time import time
-from argparse import Namespace
 
 from generator import make_generator
 from discriminator import make_discriminator
@@ -158,111 +157,6 @@ def get_lr_decay_schedule(args):
         assert False
 
     return lr_decay_schedule_generator, lr_decay_schedule_discriminator
-
-
-def get_generator_params(args):
-    params = Namespace()
-    params.output_channels = 1 if args.dataset.endswith('mnist') else 3
-    params.input_cls_shape = (1, )
-
-    first_block_w = (7 if args.dataset.endswith('mnist') else (6 if args.dataset == 'stl10' else 4))
-    params.first_block_shape = (first_block_w, first_block_w, args.generator_filters)
-    if args.arch == 'res':
-        if args.dataset == 'tiny-imagenet':
-            params.block_sizes = [args.generator_filters, args.generator_filters, args.generator_filters,
-                                  args.generator_filters]
-            params.resamples = ("UP", "UP", "UP", "UP")
-        elif args.dataset.endswith('imagenet'):
-            params.block_sizes = [args.generator_filters, args.generator_filters,
-                                  args.generator_filters, args.generator_filters / 2, args.generator_filters / 4]
- 
-            params.resamples = ("UP",  "UP", "UP", "UP", "UP")
-        else:
-            params.block_sizes = tuple([args.generator_filters] * 2) if args.dataset.endswith('mnist') else tuple([args.generator_filters] * 3)
-            params.resamples = ("UP", "UP") if args.dataset.endswith('mnist') else ("UP", "UP", "UP")
-    else:
-        assert args.dataset != 'imagenet'
-        params.block_sizes = ([args.generator_filters, args.generator_filters / 2] if args.dataset.endswith('mnist')
-                              else [args.generator_filters, args.generator_filters / 2, args.generator_filters / 4])
-        params.resamples = ("UP", "UP") if args.dataset.endswith('mnist') else ("UP", "UP", "UP")
-    params.number_of_classes = 100 if args.dataset == 'cifar100' else (1000 if args.dataset == 'imagenet'
-                                                                 else (200 if args.dataset == 'tiny-imagenet' else 10))
-
-    params.concat_cls = args.generator_concat_cls
-
-    params.block_norm = args.generator_block_norm
-    params.block_coloring = args.generator_block_coloring
-
-    params.last_norm = args.generator_last_norm
-    params.last_coloring = args.generator_last_coloring
-
-    params.decomposition = args.g_decomposition
-    params.whitten_group = args.g_whitten_group
-    params.coloring_group = args.g_coloring_group
-    params.iter_num = args.g_iter_num
-    params.instance_norm = args.g_instance_norm
-
-    params.spectral = args.generator_spectral
-    params.fully_diff_spectral = args.fully_diff_spectral
-    params.spectral_iterations = args.spectral_iterations
-    params.conv_singular = args.conv_singular
-
-    params.gan_type = args.gan_type
-    
-    params.arch = args.arch
-    params.filters_emb = args.filters_emb
-
-    return params
-
-
-def get_discriminator_params(args):
-    params = Namespace()
-    params.input_image_shape = args.image_shape
-    params.input_cls_shape = (1, )
-    if args.arch == 'res':
-        if args.dataset == 'tiny-imagenet':
-            params.resamples = ("DOWN", "DOWN", "DOWN", "SAME", "SAME")
-            params.block_sizes = [args.discriminator_filters / 4, args.discriminator_filters / 2, args.discriminator_filters,
-                                  args.discriminator_filters, args.discriminator_filters]      
-        elif args.dataset.endswith('imagenet'):
-            params.block_sizes = [args.discriminator_filters / 16, args.discriminator_filters / 8, args.discriminator_filters / 4,
-                                  args.discriminator_filters / 2, args.discriminator_filters, args.discriminator_filters]
-            params.resamples = ("DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "SAME")
-        else:
-            params.block_sizes = tuple([args.discriminator_filters] * 4)
-            params.resamples = ('DOWN', "DOWN", "SAME", "SAME")
-    else:
-        params.block_sizes = [args.discriminator_filters / 8, args.discriminator_filters / 4,
-                              args.discriminator_filters / 4, args.discriminator_filters / 2,
-                              args.discriminator_filters / 2, args.discriminator_filters,
-                              args.discriminator_filters]
-        params.resamples = ('SAME', "DOWN", "SAME", "DOWN", "SAME", "DOWN", "SAME")
-    params.number_of_classes = 100 if args.dataset == 'cifar100' else (1000 if args.dataset == 'imagenet'
-                                                                 else (200 if args.dataset == 'tiny-imagenet' else 10))
-
-    params.norm = args.discriminator_norm
-    params.coloring = args.discriminator_coloring
-
-    params.decomposition = args.d_decomposition
-    params.whitten_group = args.d_whitten_group
-    params.coloring_group = args.d_coloring_group
-    params.iter_num = args.d_iter_num
-    params.instance_norm = args.d_instance_norm
-
-    params.spectral = args.discriminator_spectral
-    params.fully_diff_spectral = args.fully_diff_spectral
-    params.spectral_iterations = args.spectral_iterations
-    params.conv_singular = args.conv_singular
-
-    params.type = args.gan_type
-
-    params.sum_pool = args.sum_pool
-    params.dropout = args.discriminator_dropout
-
-    params.arch = args.arch
-    params.filters_emb = args.filters_emb
-
-    return params
 
 
 def main():

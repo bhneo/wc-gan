@@ -1,4 +1,4 @@
-from conditional_layers import *
+from layers import *
 from spectral_normalized_layers import *
 from tensorflow.python.keras.models import Model, Input
 

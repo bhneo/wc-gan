@@ -6,14 +6,16 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.keras import backend as K
 
-from gan.layer_utils import glorot_init, resblock, dcblock
-from gan.conditional_layers import ConditionalConv11, DecorelationNormalization, ConditionalCenterScale, CenterScale, FactorizedConv11, Split
+from gan.utils import glorot_init, resblock, dcblock
+from gan.layers.coloring import ConditionalConv11, ConditionalCenterScale, CenterScale, FactorizedConv11
+from gan.layers.normalization import DecorelationNormalization
+from gan.layers.misc import Split
 from gan.spectral_normalized_layers import SNConv2D, SNConditionalConv11, SNDense, SNEmbeding, SNFactorizedConv11
 from functools import partial
 
 
 def create_norm(norm, coloring,
-                decomposition='zca', iter_num=5, whitten_group=0, coloring_group=0, instance_norm=0,
+                decomposition='zca', iter_num=5, whitten_m=0, coloring_m=0, instance_norm=0,
                 cls=None, number_of_classes=None, filters_emb=10,
                 uncoditional_conv_layer=Conv2D, conditional_conv_layer=ConditionalConv11,
                 factor_conv_layer=FactorizedConv11):
@@ -26,13 +28,13 @@ def create_norm(norm, coloring,
         norm_layer = lambda axis, name: BatchNormalization(axis=axis, center=False, scale=False, name=name)
     elif norm == 'd':
         norm_layer = lambda axis, name: DecorelationNormalization(name=name,
-                                                                  group=whitten_group,
+                                                                  m_per_group=whitten_m,
                                                                   decomposition=decomposition,
                                                                   iter_num=iter_num,
                                                                   instance_norm=instance_norm)
     elif norm == 'dr':
         norm_layer = lambda axis, name: DecorelationNormalization(name=name,
-                                                                  group=whitten_group,
+                                                                  m_per_group=whitten_m,
                                                                   decomposition=decomposition,
                                                                   iter_num=iter_num,
                                                                   instance_norm=instance_norm,
@@ -54,11 +56,13 @@ def create_norm(norm, coloring,
     elif coloring == 'cconv':
         def after_norm_layer(axis, name):
             def f(x):
+                channel = K.int_shape(x)[axis]
+                coloring_group = channel // coloring_m
                 if coloring_group > 1:
                     splits = Split(coloring_group, axis)(x)
                     outs = []
                     for i, split in enumerate(splits):
-                        split_out = conditional_conv_layer(filters=K.int_shape(x)[axis]//coloring_group, number_of_classes=number_of_classes, name=name+str(i))([split, cls])
+                        split_out = conditional_conv_layer(filters=coloring_m, number_of_classes=number_of_classes, name=name+str(i))([split, cls])
                         outs.append(split_out)
                     out = tf.keras.layers.Concatenate(axis)(outs)
                 else:
@@ -69,11 +73,13 @@ def create_norm(norm, coloring,
     elif coloring == 'fconv':
         def after_norm_layer(axis, name):
             def f(x):
+                channel = K.int_shape(x)[axis]
+                coloring_group = channel // coloring_m
                 if coloring_group > 1:
                     splits = Split(coloring_group, axis)(x)
                     outs = []
                     for i, split in enumerate(splits):
-                        split_out = factor_conv_layer(filters=K.int_shape(x)[axis]//coloring_group, number_of_classes=number_of_classes, name=name + '_c'+str(i), filters_emb=filters_emb, use_bias=False)([split, cls])
+                        split_out = factor_conv_layer(filters=coloring_m, number_of_classes=number_of_classes, name=name + '_c'+str(i), filters_emb=filters_emb, use_bias=False)([split, cls])
                         outs.append(split_out)
                     out = tf.keras.layers.Concatenate(axis)(outs)
                 else:
@@ -83,11 +89,13 @@ def create_norm(norm, coloring,
     elif coloring == 'uconv':
         def after_norm_layer(axis, name):
             def f(x):
+                channel = K.int_shape(x)[axis]
+                coloring_group = channel // coloring_m
                 if coloring_group > 1:
                     splits = Split(coloring_group, axis)(x)
                     outs = []
                     for i, split in enumerate(splits):
-                        split_out = uncoditional_conv_layer(filters=K.int_shape(x)[axis]//coloring_group, kernel_size=(1, 1), name=name+str(i))(split)
+                        split_out = uncoditional_conv_layer(filters=coloring_m, kernel_size=(1, 1), name=name+str(i))(split)
                         outs.append(split_out)
                     out = tf.keras.layers.Concatenate(axis)(outs)
                 else:
@@ -97,12 +105,14 @@ def create_norm(norm, coloring,
     elif coloring == 'ucconv':
         def after_norm_layer(axis, name):
             def f(x):
+                channel = K.int_shape(x)[axis]
+                coloring_group = channel // coloring_m
                 if coloring_group > 1:
                     splits = Split(coloring_group, axis)(x)
                     cs = []
                     us = []
                     for i, split in enumerate(splits):
-                        split_c = conditional_conv_layer(filters=K.int_shape(x)[axis]//coloring_group, number_of_classes=number_of_classes, name=name + '_c'+str(i))([split, cls])
+                        split_c = conditional_conv_layer(filters=coloring_m, number_of_classes=number_of_classes, name=name + '_c'+str(i))([split, cls])
                         split_u = uncoditional_conv_layer(kernel_size=(1, 1), filters=K.int_shape(x)[axis], name=name + '_u'+str(i))(split)
                         cs.append(split_c)
                         us.append(split_u)
@@ -118,12 +128,14 @@ def create_norm(norm, coloring,
     elif coloring == 'ccsuconv':
         def after_norm_layer(axis, name):
             def f(x):
+                channel = K.int_shape(x)[axis]
+                coloring_group = channel // coloring_m
                 c = ConditionalCenterScale(number_of_classes=number_of_classes, axis=axis, name=name + '_c')([x, cls])
                 if coloring_group > 1:
                     splits = Split(coloring_group, axis)(x)
                     us = []
                     for i, split in enumerate(splits):
-                        split_u = uncoditional_conv_layer(kernel_size=(1, 1), filters=K.int_shape(x)[axis]//coloring_group, name=name + '_u'+str(i))(split)
+                        split_u = uncoditional_conv_layer(kernel_size=(1, 1), filters=coloring_m, name=name + '_u'+str(i))(split)
                         us.append(split_u)
                     u = tf.keras.layers.Concatenate(axis)(us)
                 else:
@@ -134,15 +146,17 @@ def create_norm(norm, coloring,
     elif coloring == 'ufconv':
         def after_norm_layer(axis, name):
             def f(x):
+                channel = K.int_shape(x)[axis]
+                coloring_group = channel // coloring_m
                 if coloring_group > 1:
                     splits = Split(coloring_group, axis)(x)
                     cs = []
                     us = []
                     for i, split in enumerate(splits):
                         split_c = factor_conv_layer(number_of_classes=number_of_classes, name=name + '_c'+str(i),
-                                     filters=K.int_shape(x)[axis]//coloring_group, filters_emb=filters_emb,
+                                     filters=coloring_m, filters_emb=filters_emb,
                                      use_bias=False)([split, cls])
-                        split_u = uncoditional_conv_layer(kernel_size=(1, 1), filters=K.int_shape(x)[axis]//coloring_group, name=name + '_u'+str(i))(split)
+                        split_u = uncoditional_conv_layer(kernel_size=(1, 1), filters=coloring_m, name=name + '_u'+str(i))(split)
                         cs.append(split_c)
                         us.append(split_u)
                     c = tf.keras.layers.Concatenate(axis)(cs)
@@ -174,7 +188,7 @@ def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=
                    first_block_shape=(4, 4, 128), number_of_classes=10, concat_cls=False,
                    block_norm='u', block_coloring='cs', filters_emb=10,
                    last_norm='u', last_coloring='cs',
-                   decomposition='cholesky', whitten_group=1, coloring_group=1, iter_num=5, instance_norm=0,
+                   decomposition='cholesky', whitten_m=1, coloring_m=1, iter_num=5, instance_norm=0,
                    gan_type=None, arch='res', spectral=False,
                    fully_diff_spectral=False, spectral_iterations=1, conv_singular=True,):
 
@@ -210,13 +224,13 @@ def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=
     y = Reshape(first_block_shape)(y)
 
     block_norm_layer = create_norm(block_norm, block_coloring,
-                                   decomposition=decomposition, whitten_group=whitten_group, coloring_group=coloring_group, iter_num=iter_num, instance_norm=instance_norm,
+                                   decomposition=decomposition, whitten_m=whitten_m, coloring_m=coloring_m, iter_num=iter_num, instance_norm=instance_norm,
                                    cls=cls, number_of_classes=number_of_classes, filters_emb=filters_emb,
                                    uncoditional_conv_layer=conv_layer, conditional_conv_layer=cond_conv_layer,
                                    factor_conv_layer=factor_conv_layer)
 
     last_norm_layer = create_norm(last_norm, last_coloring,
-                                  decomposition=decomposition, whitten_group=whitten_group, coloring_group=coloring_group, iter_num=iter_num, instance_norm=instance_norm,
+                                  decomposition=decomposition, whitten_m=whitten_m, coloring_m=coloring_m, iter_num=iter_num, instance_norm=instance_norm,
                                   cls=cls, number_of_classes=number_of_classes, filters_emb=filters_emb,
                                   uncoditional_conv_layer=conv_layer, conditional_conv_layer=cond_conv_layer,
                                   factor_conv_layer=factor_conv_layer)

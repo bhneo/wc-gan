@@ -1,5 +1,5 @@
-from gan.inception_score import get_inception_score
-from gan.fid import calculate_fid_given_arrays
+from metrics.inception_score import get_inception_score
+from metrics.fid import calculate_fid_given_arrays
 from gan.dataset import UGANDataset
 import numpy as np
 from tqdm import tqdm

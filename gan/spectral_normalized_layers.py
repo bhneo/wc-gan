@@ -1,11 +1,10 @@
-from tensorflow.python.keras.layers import Conv2D, Dense, Embedding
-from tensorflow import keras
-import tensorflow.python.keras.initializers
-from tensorflow.python.keras import backend as K
 import tensorflow as tf
-from conditional_layers import ConditionalConv11, ConditionalDense, ConditionalDepthwiseConv2D, ConditionalConv2D, FactorizedConv11
-import numpy as np
+from tensorflow import keras
+from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.initializers import RandomNormal
+from tensorflow.python.keras.layers import Conv2D, Dense, Embedding
+
+from layers.coloring import ConditionalConv11, ConditionalDense, ConditionalDepthwiseConv2D, ConditionalConv2D, FactorizedConv11
 
 
 def max_singular_val(w, u, fully_differentiable=False, ip=1):
