@@ -184,6 +184,7 @@ def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=
                    last_norm='u', last_coloring='cs',
                    decomposition='cholesky', whitten_m=1, coloring_m=1, iter_num=5, instance_norm=0,
                    gan_type=None, arch='res', spectral=False,
+                   before_conv=0,
                    fully_diff_spectral=False, spectral_iterations=1, conv_singular=True,):
 
     assert arch in ['res', 'dcgan']
@@ -239,7 +240,7 @@ def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=
             # TODO: SN DECONV
             y = dcblock(y, kernel_size=(4, 4), resample=resample,
                         nfilters=block_size, name='Generator.' + str(i),
-                        norm=block_norm_layer, is_first=False, conv_layer=Conv2DTranspose)
+                        norm=block_norm_layer, is_first=False, conv_layer=Conv2DTranspose, before_conv=before_conv)
         i += 1
 
     y = last_norm_layer(axis=-1, name='Generator.BN.Final')(y)

@@ -20,6 +20,7 @@ def make_discriminator(input_image_shape, input_cls_shape=(1, ), block_sizes=(12
                        coloring='n',
                        spectral=False,
                        fully_diff_spectral=False, spectral_iterations=1, conv_singular=True,
+                       before_conv=0,
                        sum_pool=False, dropout=False, arch='res', filters_emb=10):
 
     assert arch in ['res', 'dcgan']
@@ -56,7 +57,7 @@ def make_discriminator(input_image_shape, input_cls_shape=(1, ), block_sizes=(12
             i += 1
         else:
             y = dcblock(y, kernel_size=(3, 3) if resample == "SAME" else (4, 4), resample=resample, nfilters=block_size,
-                        name='Discriminator.' + str(i), norm=norm_layer, is_first=(i == 0), conv_layer=conv_layer)
+                        name='Discriminator.' + str(i), norm=norm_layer, is_first=(i == 0), conv_layer=conv_layer, before_conv=before_conv)
             i += 1
 
     if arch == 'res':
