@@ -241,7 +241,7 @@ def resblock(x, kernel_size, resample, nfilters, name, norm=BatchNormalization, 
     return y
 
 
-def dcblock(x, kernel_size, resample, nfilters, name, norm=BatchNormalization, is_first=False, conv_layer=Conv2D):
+def dcblock(x, kernel_size, resample, nfilters, name, norm=BatchNormalization, is_first=False, conv_layer=Conv2D, before_conv=0):
     assert resample in ["UP", "SAME", "DOWN"]
 
     feature_axis = 1 if K.image_data_format() == 'channels_first' else -1
@@ -255,14 +255,21 @@ def dcblock(x, kernel_size, resample, nfilters, name, norm=BatchNormalization, i
     elif resample == "SAME":
        if not is_first:
            convpath = norm(axis=feature_axis, name=name + '.bn')(convpath)
-           convpath = LeakyReLU(name=name + 'relu')(convpath)
+           if before_conv == 0:
+                convpath = LeakyReLU(name=name + 'relu')(convpath)
 
        convpath = conv_layer(filters=nfilters, kernel_size=kernel_size,
-                              name=name + '.conv', padding='same')(convpath)
+                             name=name + '.conv', padding='same')(convpath)
+       if before_conv != 0:
+           convpath = LeakyReLU(name=name + 'relu')(convpath)
     elif resample == "DOWN":
         if not is_first:
             convpath = norm(axis=feature_axis, name=name + '.bn')(convpath)
-            convpath = LeakyReLU(name=name + 'relu')(convpath)
+            if before_conv == 0:
+                convpath = LeakyReLU(name=name + 'relu')(convpath)
+
         convpath = conv_layer(filters=nfilters, kernel_size=kernel_size, strides=(2, 2),
                               name=name + '.conv', padding='same')(convpath)
+        if before_conv != 0:
+            convpath = LeakyReLU(name=name + 'relu')(convpath)
     return convpath

@@ -85,12 +85,15 @@ def parser_with_default_args():
     parser.add_argument("--d_whitten_m", default=1, type=int, help='')
     parser.add_argument("--d_coloring_m", default=1, type=int, help='')
     parser.add_argument("--d_iter_num", default=5, type=int, help='')
+    parser.add_argument("--d_before_conv", default=0, type=int, help='')
+
     parser.add_argument("--g_instance_norm", default=0, type=int, choices=[0, 1], help='0:false 1:true')
     parser.add_argument("--g_decomposition", default='cholesky', choices=['cholesky', 'zca', 'pca', 'iter_norm'],
                         help='')
     parser.add_argument("--g_whitten_m", default=1, type=int, help='')
     parser.add_argument("--g_coloring_m", default=1, type=int, help='')
     parser.add_argument("--g_iter_num", default=5, type=int, help='')
+    parser.add_argument("--g_before_conv", default=0, type=int, help='')
     parser.add_argument("--generator_batch_multiple", default=2, type=int,
                         help="Size of the generator batch, multiple of batch_size.")
     parser.add_argument("--generator_concat_cls", default=0, type=int, help='Concat labels to noise in generator.')
@@ -163,6 +166,7 @@ def get_generator_params(args):
     params.coloring_m = args.g_coloring_m
     params.iter_num = args.g_iter_num
     params.instance_norm = args.g_instance_norm
+    params.before_conv = args.g_before_conv
 
     params.spectral = args.generator_spectral
     params.fully_diff_spectral = args.fully_diff_spectral
@@ -214,6 +218,7 @@ def get_discriminator_params(args):
     params.coloring_m = args.d_coloring_m
     params.iter_num = args.d_iter_num
     params.instance_norm = args.d_instance_norm
+    params.before_conv = args.d_before_conv
 
     params.spectral = args.discriminator_spectral
     params.fully_diff_spectral = args.fully_diff_spectral
