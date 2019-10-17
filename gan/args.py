@@ -81,14 +81,14 @@ def parser_with_default_args():
                              "ucs - uncoditional shift and scale. ucconv - condcoloring. ufconv - condcoloring + sa."
                              "n - None.")
     parser.add_argument("--d_instance_norm", default=0, type=int, choices=[0, 1], help='0:false 1:true')
-    parser.add_argument("--d_decomposition", default='cholesky', choices=['cholesky', 'zca', 'pca', 'iter_norm'], help='')
+    parser.add_argument("--d_decomposition", default='cholesky', choices=['cholesky', 'zca', 'pca', 'iter_norm','cholesky_wm', 'zca_wm', 'pca_wm', 'iter_norm_wm'], help='')
     parser.add_argument("--d_whitten_m", default=1, type=int, help='')
     parser.add_argument("--d_coloring_m", default=1, type=int, help='')
     parser.add_argument("--d_iter_num", default=5, type=int, help='')
     parser.add_argument("--d_before_conv", default=0, type=int, help='')
 
     parser.add_argument("--g_instance_norm", default=0, type=int, choices=[0, 1], help='0:false 1:true')
-    parser.add_argument("--g_decomposition", default='cholesky', choices=['cholesky', 'zca', 'pca', 'iter_norm'],
+    parser.add_argument("--g_decomposition", default='cholesky', choices=['cholesky', 'zca', 'pca', 'iter_norm','cholesky_wm', 'zca_wm', 'pca_wm', 'iter_norm_wm'],
                         help='')
     parser.add_argument("--g_whitten_m", default=1, type=int, help='')
     parser.add_argument("--g_coloring_m", default=1, type=int, help='')
