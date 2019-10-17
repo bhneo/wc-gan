@@ -32,7 +32,7 @@ def center(inputs, moving_mean, instance_norm=False):
 
 
 def get_decomposition(decomposition, batch_size, group, instance_norm, iter_num, epsilon):
-    if decomposition == 'cholesky':
+    if decomposition == 'cholesky' or decomposition == 'cholesky_wm':
         def get_inv_sqrt(ff, m_per_group):
             with tf.device('/cpu:0'):
                 sqrt = tf.linalg.cholesky(ff)
@@ -44,7 +44,7 @@ def get_decomposition(decomposition, batch_size, group, instance_norm, iter_num,
                 inv_sqrt = tf.linalg.triangular_solve(sqrt, tf.tile(tf.expand_dims(tf.eye(m_per_group), 0),
                                                                     [group, 1, 1]))
             return sqrt, inv_sqrt
-    elif decomposition == 'zca':
+    elif decomposition == 'zca' or decomposition == 'zca_wm':
         def get_inv_sqrt(ff, m_per_group):
             with tf.device('/cpu:0'):
                 S, U, _ = tf.svd(ff + tf.eye(m_per_group) * epsilon, full_matrices=True)
@@ -53,7 +53,7 @@ def get_decomposition(decomposition, batch_size, group, instance_norm, iter_num,
             D = tf.linalg.diag(tf.pow(S, 0.5))
             sqrt = tf.matmul(tf.matmul(U, D), U, transpose_b=True)
             return sqrt, inv_sqrt
-    elif decomposition == 'pca':
+    elif decomposition == 'pca' or decomposition == 'pca_wm':
         def get_inv_sqrt(ff, m_per_group):
             with tf.device('/cpu:0'):
                 S, U, _ = tf.svd(ff + tf.eye(m_per_group) * epsilon, full_matrices=True)
@@ -62,7 +62,7 @@ def get_decomposition(decomposition, batch_size, group, instance_norm, iter_num,
             D = tf.linalg.diag(tf.pow(S, 0.5))
             sqrt = tf.matmul(D, U, transpose_b=True)
             return sqrt, inv_sqrt
-    elif decomposition == 'iter_norm':
+    elif decomposition == 'iter_norm' or decomposition == 'iter_norm_wm':
         def get_inv_sqrt(ff, m_per_group):
             trace = tf.linalg.trace(ff)
             trace = tf.expand_dims(trace, [-1])

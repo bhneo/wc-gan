@@ -375,14 +375,15 @@ class DecorelationNormalization(Layer):
                  moving_mean_initializer='zeros',
                  moving_cov_initializer='identity',
                  **kwargs):
-        assert decomposition in ['cholesky', 'zca', 'pca', 'iter_norm']
+        assert decomposition in ['cholesky', 'zca', 'pca', 'iter_norm',
+                                 'cholesky_wm', 'zca_wm', 'pca_wm', 'iter_norm_wm']
         super(DecorelationNormalization, self).__init__(**kwargs)
         self.supports_masking = True
         self.momentum = momentum
         self.epsilon = epsilon
         self.m_per_group = m_per_group
         self.moving_mean_initializer = initializers.get(moving_mean_initializer)
-        self.moving_cov_initializer = initializers.get(moving_cov_initializer)
+        # self.moving_cov_initializer = initializers.get(moving_cov_initializer)
         self.axis = axis
         self.renorm = renorm
         self.decomposition = decomposition
@@ -390,7 +391,7 @@ class DecorelationNormalization(Layer):
         self.instance_norm = instance_norm
         self.data_format = conv_utils.normalize_data_format(data_format)
 
-    def cov_initializer(self, shape, dtype=tf.float32, partition_info=None):
+    def matrix_initializer(self, shape, dtype=tf.float32, partition_info=None):
         moving_convs = []
         for i in range(shape[0]):
             moving_conv = tf.expand_dims(tf.eye(shape[1], dtype=dtype), 0)
@@ -419,12 +420,12 @@ class DecorelationNormalization(Layer):
                                            initializer=self.moving_mean_initializer,
                                            trainable=False,
                                            aggregation=tf_variables.VariableAggregation.MEAN)
-        self.moving_covs = self.add_weight(shape=(self.group, self.m_per_group, self.m_per_group),
-                                           name='moving_variance',
-                                           synchronization=tf_variables.VariableSynchronization.ON_READ,
-                                           initializer=self.cov_initializer,
-                                           trainable=False,
-                                           aggregation=tf_variables.VariableAggregation.MEAN)
+        self.moving_matrix = self.add_weight(shape=(self.group, self.m_per_group, self.m_per_group),
+                                             name='moving_matrix',
+                                             synchronization=tf_variables.VariableSynchronization.ON_READ,
+                                             initializer=self.matrix_initializer,
+                                             trainable=False,
+                                             aggregation=tf_variables.VariableAggregation.MEAN)
 
         self.built = True
 
@@ -443,26 +444,32 @@ class DecorelationNormalization(Layer):
                 ff_aprs = (1 - self.epsilon) * ff_aprs + tf.expand_dims(tf.expand_dims(tf.eye(self.m_per_group) * self.epsilon, 0), 0)
             else:
                 ff_aprs = (1 - self.epsilon) * ff_aprs + tf.expand_dims(tf.eye(self.m_per_group) * self.epsilon, 0)
-                self.add_update([K.moving_average_update(self.moving_mean,
-                                                         m,
-                                                         self.momentum),
-                                 K.moving_average_update(self.moving_covs,
-                                                         ff_aprs,
-                                                         self.momentum)],
-                                 inputs)
+
+            whitten_matrix = get_inv_sqrt(ff_aprs, self.m_per_group)[1]
+
+            self.add_update([K.moving_average_update(self.moving_mean,
+                                                     m,
+                                                     self.momentum),
+                             K.moving_average_update(self.moving_matrix,
+                                                     whitten_matrix if '_wm' in self.decomposition else ff_aprs,
+                                                     self.momentum)],
+                            inputs)
 
             if self.renorm:
                 l, l_inv = get_inv_sqrt(ff_aprs, self.m_per_group)
-                ff_mov = (1 - self.epsilon) * self.moving_covs + tf.eye(self.m_per_group) * self.epsilon
+                ff_mov = (1 - self.epsilon) * self.moving_matrix + tf.eye(self.m_per_group) * self.epsilon
                 _, l_mov_inverse = get_inv_sqrt(ff_mov, self.m_per_group)
                 l_ndiff = K.stop_gradient(l)
                 return tf.matmul(tf.matmul(l_mov_inverse, l_ndiff), l_inv)
 
-            return get_inv_sqrt(ff_aprs, self.m_per_group)[1]
+            return whitten_matrix
 
         def test():
-            ff_mov = (1 - self.epsilon) * self.moving_covs + tf.eye(self.m_per_group) * self.epsilon
-            return get_inv_sqrt(ff_mov, self.m_per_group)[1]
+            moving_matrix = (1 - self.epsilon) * self.moving_matrix + tf.eye(self.m_per_group) * self.epsilon
+            if '_wm' in self.decomposition:
+                return moving_matrix
+            else:
+                return get_inv_sqrt(moving_matrix, self.m_per_group)[1]
 
         if self.instance_norm == 1:
             inv_sqrt = train()
@@ -485,7 +492,7 @@ class DecorelationNormalization(Layer):
             'momentum': self.momentum,
             'epsilon': self.epsilon,
             'moving_mean_initializer': initializers.serialize(self.moving_mean_initializer),
-            'moving_variance_initializer': initializers.serialize(self.moving_cov_initializer)
+            'moving_matrix_initializer': initializers.serialize(self.matrix_initializer)
         }
         base_config = super(DecorelationNormalization, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
