@@ -588,7 +588,7 @@ class NINConv11(Layer):
                  bias_constraint=None,
                  **kwargs):
         super(NINConv11, self).__init__(**kwargs)
-        self.filters = filters
+        self.filters = int(filters)
         self.locnet = locnet
         self.kernel_size = conv_utils.normalize_tuple((1, 1), 2, 'kernel_size')
         self.strides = conv_utils.normalize_tuple(strides, 2, 'strides')
@@ -758,7 +758,7 @@ class ConditionalConv2D(Layer):
                  bias_constraint=None,
                  **kwargs):
         super(ConditionalConv2D, self).__init__(**kwargs)
-        self.filters = filters
+        self.filters = int(filters)
         self.kernel_size = conv_utils.normalize_tuple(kernel_size, 2, 'kernel_size')
         self.number_of_classes = number_of_classes
         self.strides = conv_utils.normalize_tuple(strides, 2, 'strides')
@@ -900,7 +900,7 @@ class ConditionalDepthwiseConv2D(Layer):
                  bias_constraint=None,
                  **kwargs):
         super(ConditionalDepthwiseConv2D, self).__init__(**kwargs)
-        self.filters = filters
+        self.filters = int(filters)
         self.kernel_size = conv_utils.normalize_tuple(kernel_size, 2, 'kernel_size')
         self.number_of_classes = number_of_classes
         self.strides = conv_utils.normalize_tuple(strides, 2, 'strides')
