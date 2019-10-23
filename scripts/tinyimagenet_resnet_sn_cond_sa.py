@@ -4,7 +4,7 @@ import os
 base_name = os.path.basename(__file__).split('.')[0]
 name = base_name + '_baseline'
 print(name)
-os.system('python run.py --phase test --name {} --dataset tiny-imagenet\
+os.system('python run.py --phase train --name {} --dataset tiny-imagenet\
           --generator_adversarial_objective hinge --discriminator_adversarial_objective hinge\
           --discriminator_norm n\
           --discriminator_coloring n\

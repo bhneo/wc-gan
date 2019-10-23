@@ -152,7 +152,6 @@ class SNEmbeding(Embedding):
         self.spectral_iterations = spectral_iterations
         self.stateful = stateful
 
-
     def build(self, input_shape):
         super(SNEmbeding, self).build(input_shape)
         kernel_shape = K.int_shape(self.embeddings)
