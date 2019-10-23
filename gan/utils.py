@@ -206,7 +206,7 @@ def resblock(x, kernel_size, resample, nfilters, name, norm=BatchNormalization, 
     if resample == "SAME" and in_filters == nfilters:
         shortcut_layer = identity
     else:
-        shortcut_layer = conv_layer(kernel_size=(1, 1), filters=nfilters, kernel_initializer=he_init, name=name + 'shortcut')
+        shortcut_layer = conv_layer(kernel_size=(1, 1), filters=int(nfilters), kernel_initializer=he_init, name=name + 'shortcut')
 
     ### SHORTCUT PAHT
     if is_first:
@@ -224,13 +224,13 @@ def resblock(x, kernel_size, resample, nfilters, name, norm=BatchNormalization, 
     if resample == "UP":
         convpath = resample_op(convpath)
 
-    convpath = conv_layer(filters=nfilters, kernel_size=kernel_size, kernel_initializer=he_init,
+    convpath = conv_layer(filters=int(nfilters), kernel_size=kernel_size, kernel_initializer=he_init,
                                       use_bias=True, padding='same', name=name + '_conv1')(convpath)
 
     convpath = norm(axis=feature_axis, name=name + '_bn2')(convpath)
     convpath = Activation('relu')(convpath)
 
-    convpath = conv_layer(filters=nfilters, kernel_size=kernel_size, kernel_initializer=he_init,
+    convpath = conv_layer(filters=int(nfilters), kernel_size=kernel_size, kernel_initializer=he_init,
                           use_bias=True, padding='same', name=name + '_conv2')(convpath)
 
     if resample == "DOWN":
