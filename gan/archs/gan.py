@@ -191,7 +191,6 @@ class GAN(object):
         self.discriminator_fake_output = self.discriminator(self.generator_output)
         self.discriminator_real_output = self.discriminator(self.discriminator_input)
 
-
     def intermediate_variables_to_lists(self):
         if type(self.generator_output) != list:
             self.generator_output = [self.generator_output]

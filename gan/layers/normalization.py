@@ -374,6 +374,7 @@ class DecorelationNormalization(Layer):
                  data_format=None,
                  moving_mean_initializer='zeros',
                  moving_cov_initializer='identity',
+                 device='cpu',
                  **kwargs):
         assert decomposition in ['cholesky', 'zca', 'pca', 'iter_norm',
                                  'cholesky_wm', 'zca_wm', 'pca_wm', 'iter_norm_wm']
@@ -389,6 +390,7 @@ class DecorelationNormalization(Layer):
         self.decomposition = decomposition
         self.iter_num = iter_num
         self.instance_norm = instance_norm
+        self.device = device
         self.data_format = conv_utils.normalize_data_format(data_format)
 
     def matrix_initializer(self, shape, dtype=tf.float32, partition_info=None):
@@ -434,7 +436,7 @@ class DecorelationNormalization(Layer):
         bs = K.shape(inputs)[0]
 
         m, f = utils.center(inputs, self.moving_mean, self.instance_norm)
-        get_inv_sqrt = utils.get_decomposition(self.decomposition, bs, self.group, self.instance_norm, self.iter_num, self.epsilon)
+        get_inv_sqrt = utils.get_decomposition(self.decomposition, bs, self.group, self.instance_norm, self.iter_num, self.epsilon, self.device)
 
         def train():
             ff_aprs = utils.get_group_cov(f, self.group, self.m_per_group, self.instance_norm, bs, w, h, c)
@@ -496,6 +498,58 @@ class DecorelationNormalization(Layer):
         }
         base_config = super(DecorelationNormalization, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+def test_dbn_speed():
+    dbn_speed('generator')
+    dbn_speed('module')
+
+
+def dbn_speed(model='module'):
+    devices = ['cpu', 'gpu']
+    m_per_groups = [8, 16, 32, 64]
+    decompositions = ['cholesky', 'zca', 'iter_norm']
+    iter_nums = [1, 3, 5, 7]
+    batch_size = 128
+    if model == 'module':
+        in_shape = [16, 16, 512]
+        trial = 10
+    elif model == 'generator':
+        in_shape = [128,]
+        trial = 1
+    print()
+    import time
+    import generator
+    module_inputs = tf.keras.Input(shape=in_shape)
+    for d in devices:
+        for m in m_per_groups:
+            for decom in decompositions:
+                if model == 'module':
+                    module_outputs = DecorelationNormalization(m_per_group=m,
+                                                               decomposition=decom,
+                                                               device=d)(module_inputs)
+                    module_model = tf.keras.Model(inputs=module_inputs, outputs=module_outputs)
+                elif model == 'generator':
+                    module_model = generator.make_generator(block_sizes=[256, 256, 256],
+                                                            decomposition=decom,
+                                                            whitten_m=m,
+                                                            block_norm='d',
+                                                            last_norm='d',
+                                                            block_coloring='uconv',
+                                                            last_coloring='uconv',
+                                                            device=d,
+                                                            )
+
+                inputs1 = np.random.normal(size=[batch_size] + in_shape)
+                inputs2 = np.random.normal(size=[batch_size] + in_shape)
+
+                module_model.predict(inputs1)  # warm up devices
+                t1 = time.time()
+                for _ in range(trial):
+                    outputs = module_model.predict(inputs2)
+                t2 = time.time()
+                item = ','.join(['device_'+d, 'm_'+str(m), 'decomposition_'+decom])
+                print(item, ':', (t2 - t1)/trial)
 
 
 def test_dbn_eager():

@@ -15,7 +15,7 @@ from functools import partial
 
 
 def create_norm(norm, coloring,
-                decomposition='zca', iter_num=5, whitten_m=0, coloring_m=0, instance_norm=0,
+                decomposition='zca', iter_num=5, whitten_m=0, coloring_m=0, instance_norm=0, device='cpu',
                 cls=None, number_of_classes=None, filters_emb=10,
                 uncoditional_conv_layer=Conv2D, conditional_conv_layer=ConditionalConv11,
                 factor_conv_layer=FactorizedConv11):
@@ -31,7 +31,8 @@ def create_norm(norm, coloring,
                                                                   m_per_group=whitten_m,
                                                                   decomposition=decomposition,
                                                                   iter_num=iter_num,
-                                                                  instance_norm=instance_norm)
+                                                                  instance_norm=instance_norm,
+                                                                  device=device)
     elif norm == 'dr':
         norm_layer = lambda axis, name: DecorelationNormalization(name=name,
                                                                   m_per_group=whitten_m,
@@ -182,7 +183,7 @@ def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=
                    first_block_shape=(4, 4, 128), number_of_classes=10, concat_cls=False,
                    block_norm='u', block_coloring='cs', filters_emb=10,
                    last_norm='u', last_coloring='cs',
-                   decomposition='cholesky', whitten_m=1, coloring_m=1, iter_num=5, instance_norm=0,
+                   decomposition='cholesky', whitten_m=1, coloring_m=1, iter_num=5, instance_norm=0, device='cpu',
                    gan_type=None, arch='res', spectral=False,
                    before_conv=0,
                    fully_diff_spectral=False, spectral_iterations=1, conv_singular=True,):
@@ -219,13 +220,17 @@ def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=
     y = Reshape(first_block_shape)(y)
 
     block_norm_layer = create_norm(block_norm, block_coloring,
-                                   decomposition=decomposition, whitten_m=whitten_m, coloring_m=coloring_m, iter_num=iter_num, instance_norm=instance_norm,
+                                   decomposition=decomposition,
+                                   whitten_m=whitten_m, coloring_m=coloring_m,
+                                   iter_num=iter_num, instance_norm=instance_norm, device=device,
                                    cls=cls, number_of_classes=number_of_classes, filters_emb=filters_emb,
                                    uncoditional_conv_layer=conv_layer, conditional_conv_layer=cond_conv_layer,
                                    factor_conv_layer=factor_conv_layer)
 
     last_norm_layer = create_norm(last_norm, last_coloring,
-                                  decomposition=decomposition, whitten_m=whitten_m, coloring_m=coloring_m, iter_num=iter_num, instance_norm=instance_norm,
+                                  decomposition=decomposition,
+                                  whitten_m=whitten_m, coloring_m=coloring_m,
+                                  iter_num=iter_num, instance_norm=instance_norm,  device=device,
                                   cls=cls, number_of_classes=number_of_classes, filters_emb=filters_emb,
                                   uncoditional_conv_layer=conv_layer, conditional_conv_layer=cond_conv_layer,
                                   factor_conv_layer=factor_conv_layer)

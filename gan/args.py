@@ -107,7 +107,7 @@ def parser_with_default_args():
                         help="Layer after block normalization. ccs - conditional shift and scale."
                              "ucs - uncoditional shift and scale. ucconv - condcoloring. ufconv - condcoloring + sa."
                              "n - None.")
-    parser.add_argument("--discriminator_filters", default=128, type=int,
+    parser.add_argument("--discriminator_filters", default=512, type=int,
                         help='Base number of filters in discriminator block.')
     parser.add_argument("--discriminator_dropout", type=float, default=0, help="Use dropout in discriminator.")
     parser.add_argument("--shred_disc_batch", type=int, default=0, help='Shred batch in discriminator to save memory')
