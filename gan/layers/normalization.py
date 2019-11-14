@@ -1,4 +1,5 @@
-import utils
+import os
+import sys
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.keras import backend as K
@@ -6,6 +7,10 @@ from tensorflow.python.keras import initializers, regularizers, constraints
 from tensorflow.python.keras.layers import Layer
 from tensorflow.python.ops import variables as tf_variables
 from tensorflow.python.keras.utils import conv_utils
+
+sys.path.append(os.path.abspath('./'))
+sys.path.append(os.path.abspath('./gan'))
+import utils
 
 
 class ConditionalInstanceNormalization(Layer):
@@ -500,11 +505,6 @@ class DecorelationNormalization(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-def test_dbn_speed():
-    dbn_speed('generator')
-    dbn_speed('module')
-
-
 def dbn_speed(model='module'):
     devices = ['cpu', 'gpu']
     m_per_groups = [8, 16, 32, 64]
@@ -516,7 +516,7 @@ def dbn_speed(model='module'):
         trial = 10
     elif model == 'generator':
         in_shape = [128,]
-        trial = 1
+        trial = 10
     print()
     import time
     import generator
@@ -540,7 +540,7 @@ def dbn_speed(model='module'):
                                                             device=d,
                                                             )
 
-                inputs1 = np.random.normal(size=[batch_size] + in_shape)
+                inputs1 = np.random.normal(size=[1] + in_shape)
                 inputs2 = np.random.normal(size=[batch_size] + in_shape)
 
                 module_model.predict(inputs1)  # warm up devices
@@ -628,3 +628,8 @@ def test_dbn():
     K.set_learning_phase(1)
     outputs = sess.run([out], feed_dict={inputs: data})
     print(np.mean(outputs))
+
+
+if __name__ == "__main__":
+    dbn_speed('generator')
+    dbn_speed('module')
