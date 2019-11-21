@@ -183,7 +183,7 @@ def make_generator(input_noise_shape=(128,), output_channels=3, input_cls_shape=
                    first_block_shape=(4, 4, 128), number_of_classes=10, concat_cls=False,
                    block_norm='u', block_coloring='cs', filters_emb=10,
                    last_norm='u', last_coloring='cs',
-                   decomposition='cholesky', whitten_m=1, coloring_m=1, iter_num=5, instance_norm=0, device='cpu',
+                   decomposition='cholesky', whitten_m=0, coloring_m=0, iter_num=5, instance_norm=0, device='cpu',
                    gan_type=None, arch='res', spectral=False,
                    before_conv=0,
                    fully_diff_spectral=False, spectral_iterations=1, conv_singular=True,):

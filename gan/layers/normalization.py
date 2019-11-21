@@ -371,7 +371,7 @@ class DecorelationNormalization(Layer):
                  axis=-1,
                  momentum=0.99,
                  epsilon=1e-3,
-                 m_per_group=1,
+                 m_per_group=0,
                  decomposition='cholesky',
                  iter_num=5,
                  instance_norm=0,
@@ -505,39 +505,52 @@ class DecorelationNormalization(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-def dbn_speed(model='module'):
-    devices = ['cpu', 'gpu']
-    m_per_groups = [8, 16, 32, 64]
-    decompositions = ['cholesky', 'zca', 'iter_norm']
-    iter_nums = [1, 3, 5, 7]
-    batch_size = 128
+def dbn_speed(model='module', devices=['cpu', 'gpu'],
+              m_per_groups=[8, 16, 32, 64],
+              decompositions=['cholesky', 'zca', 'iter_norm'],
+              iter_nums=5,
+              batch_size=64,
+              block_sizes=[256, 256, 256],
+              norm='d',
+              coloring='uconv',
+              arch='dcgan',
+              trial=10):
+    print('start test:')
+    print('model:{}, arch:{}, blocks:{}, norm:{}, coloring:{}'.format(model, arch, block_sizes, norm, coloring))
     if model == 'module':
         in_shape = [16, 16, 512]
-        trial = 10
     elif model == 'generator':
-        in_shape = [128,]
-        trial = 10
+        in_shape = [128, ]
+    else:
+        in_shape = [128, ]
     print()
     import time
     import generator
     module_inputs = tf.keras.Input(shape=in_shape)
     for d in devices:
+        if norm != 'd':
+            m_per_groups = [1]
+            decompositions = 'zca'
         for m in m_per_groups:
             for decom in decompositions:
+                tf.reset_default_graph()
                 if model == 'module':
                     module_outputs = DecorelationNormalization(m_per_group=m,
                                                                decomposition=decom,
                                                                device=d)(module_inputs)
                     module_model = tf.keras.Model(inputs=module_inputs, outputs=module_outputs)
                 elif model == 'generator':
-                    module_model = generator.make_generator(block_sizes=[256, 256, 256],
+                    module_model = generator.make_generator(block_sizes=block_sizes,
                                                             decomposition=decom,
                                                             whitten_m=m,
-                                                            block_norm='d',
-                                                            last_norm='d',
-                                                            block_coloring='uconv',
-                                                            last_coloring='uconv',
+                                                            coloring_m=0,
+                                                            block_norm=norm,
+                                                            last_norm=norm,
+                                                            iter_num=iter_nums,
+                                                            block_coloring=coloring,
+                                                            last_coloring=coloring,
                                                             device=d,
+                                                            arch=arch,
                                                             )
 
                 inputs1 = np.random.normal(size=[1] + in_shape)
@@ -630,6 +643,62 @@ def test_dbn():
     print(np.mean(outputs))
 
 
+def speed_on_figure8():
+    model = 'generator'
+    block_sizes = [256, 256, 256]
+    arch = 'dcgan'
+    # Figure 8
+    # W/O
+    dbn_speed(model,
+              block_sizes=block_sizes, norm='n',
+              coloring='n',
+              arch=arch)
+    # Coloring
+    coloring = 'uconv'
+    # BN
+    dbn_speed(model, devices=['gpu'],
+              block_sizes=block_sizes, norm='b',
+              coloring=coloring,
+              arch=arch)
+    # Whiten
+    dbn_speed(model,
+              m_per_groups=[0], decompositions=['cholesky', 'iter_norm'],
+              block_sizes=block_sizes, norm='d', coloring=coloring,
+              arch=arch)
+    dbn_speed(model,
+              m_per_groups=[16, 32, 64], decompositions=['zca'],
+              block_sizes=block_sizes, norm='d', coloring=coloring,
+              arch=arch)
+    dbn_speed(model,
+              m_per_groups=[64], decompositions=['cholesky'],
+              block_sizes=block_sizes, norm='d', coloring=coloring,
+              arch=arch)
+
+    coloring = 'ucs'
+    # BN
+    dbn_speed(model, devices=['gpu'],
+              block_sizes=block_sizes, norm='b',
+              coloring=coloring,
+              arch=arch)
+    # Whiten
+    dbn_speed(model,
+              m_per_groups=[0], decompositions=['cholesky', 'iter_norm'],
+              block_sizes=block_sizes, norm='d', coloring=coloring,
+              arch=arch)
+    dbn_speed(model,
+              m_per_groups=[16, 32, 64], decompositions=['zca'],
+              block_sizes=block_sizes, norm='d', coloring=coloring,
+              arch=arch)
+    dbn_speed(model,
+              m_per_groups=[64], decompositions=['cholesky'],
+              block_sizes=block_sizes, norm='d', coloring=coloring,
+              arch=arch)
+
+
+def speed_on_table5():
+    pass
+
+
 if __name__ == "__main__":
-    dbn_speed('generator')
-    dbn_speed('module')
+    speed_on_figure8()
+    speed_on_table5()
