@@ -765,8 +765,8 @@ def speed_on_table5():
 
 
 if __name__ == "__main__":
-    speed_on_figure8()
-    # speed_on_table5()
+    # speed_on_figure8()
+    speed_on_table5()
     # dbn_speed_old('module')
     # dbn_speed_old('generator')
     # dbn_speed('generator',devices=['gpu'])
