@@ -509,13 +509,13 @@ def dbn_speed_old(model='module'):
     devices = ['cpu', 'gpu']
     m_per_groups = [8, 16, 32, 64]
     decompositions = ['cholesky', 'zca', 'iter_norm']
-    batch_size = 128
+    batch_size = 64
     if model == 'module':
         in_shape = [16, 16, 512]
-        trial = 10
+        trial = 100
     elif model == 'generator':
         in_shape = [128,]
-        trial = 10
+        trial = 100
     print()
     import time
     import generator
@@ -548,7 +548,7 @@ def dbn_speed_old(model='module'):
                     outputs = module_model.predict(inputs2)
                 t2 = time.time()
                 item = ','.join(['device_'+d, 'm_'+str(m), 'decomposition_'+decom])
-                print(item, ':', (t2 - t1)/trial)
+                print(item, ':', (t2 - t1)*1000/trial)
 
 
 def dbn_speed(model='module', devices=['cpu', 'gpu'],
@@ -560,7 +560,7 @@ def dbn_speed(model='module', devices=['cpu', 'gpu'],
               norm='d',
               coloring='uconv',
               arch='dcgan',
-              trial=10):
+              trial=100):
     print('start test:')
     print('model:{}, arch:{}, blocks:{}, norm:{}, coloring:{}'.format(model, arch, block_sizes, norm, coloring))
     if model == 'module':
@@ -572,14 +572,14 @@ def dbn_speed(model='module', devices=['cpu', 'gpu'],
     print()
     import time
     import generator
-    module_inputs = tf.keras.Input(shape=in_shape)
+    if norm != 'd':
+        devices = ['gpu']
+        m_per_groups = [1]
+        decompositions = ['None']
     for d in devices:
-        if norm != 'd':
-            m_per_groups = [1]
-            decompositions = 'zca'
         for m in m_per_groups:
             for decom in decompositions:
-                tf.reset_default_graph()
+                module_inputs = tf.keras.Input(shape=in_shape)
                 if model == 'module':
                     module_outputs = DecorelationNormalization(m_per_group=m,
                                                                decomposition=decom,
@@ -608,7 +608,8 @@ def dbn_speed(model='module', devices=['cpu', 'gpu'],
                     outputs = module_model.predict(inputs2)
                 t2 = time.time()
                 item = ','.join(['device_'+d, 'm_'+str(m), 'decomposition_'+decom])
-                print(item, ':', (t2 - t1)/trial)
+                print(item, ':', (t2 - t1)*1000/trial)
+                del module_model
 
 
 def test_dbn_eager():
@@ -708,15 +709,7 @@ def speed_on_figure8():
               arch=arch)
     # Whiten
     dbn_speed(model,
-              m_per_groups=[0], decompositions=['cholesky', 'iter_norm'],
-              block_sizes=block_sizes, norm='d', coloring=coloring,
-              arch=arch)
-    dbn_speed(model,
-              m_per_groups=[16, 32, 64], decompositions=['zca'],
-              block_sizes=block_sizes, norm='d', coloring=coloring,
-              arch=arch)
-    dbn_speed(model,
-              m_per_groups=[64], decompositions=['cholesky'],
+              m_per_groups=[0, 16, 32, 64], decompositions=['cholesky', 'iter_norm', 'zca'],
               block_sizes=block_sizes, norm='d', coloring=coloring,
               arch=arch)
 
@@ -728,25 +721,17 @@ def speed_on_figure8():
               arch=arch)
     # Whiten
     dbn_speed(model,
-              m_per_groups=[0], decompositions=['cholesky', 'iter_norm'],
+              m_per_groups=[0, 16, 32, 64], decompositions=['cholesky', 'iter_norm', 'zca'],
               block_sizes=block_sizes, norm='d', coloring=coloring,
               arch=arch)
-    dbn_speed(model,
-              m_per_groups=[16, 32, 64], decompositions=['zca'],
-              block_sizes=block_sizes, norm='d', coloring=coloring,
-              arch=arch)
-    dbn_speed(model,
-              m_per_groups=[64], decompositions=['cholesky'],
-              block_sizes=block_sizes, norm='d', coloring=coloring,
-              arch=arch)
-
 
 def speed_on_table5():
     pass
 
 
 if __name__ == "__main__":
-    # speed_on_figure8()
+    speed_on_figure8()
     # speed_on_table5()
-    dbn_speed_old('module')
-    dbn_speed_old('generator')
+    # dbn_speed_old('module')
+    # dbn_speed_old('generator')
+    # dbn_speed('generator',devices=['gpu'])
