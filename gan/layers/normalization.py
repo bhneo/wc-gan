@@ -505,6 +505,52 @@ class DecorelationNormalization(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
+def dbn_speed_old(model='module'):
+    devices = ['cpu', 'gpu']
+    m_per_groups = [8, 16, 32, 64]
+    decompositions = ['cholesky', 'zca', 'iter_norm']
+    batch_size = 128
+    if model == 'module':
+        in_shape = [16, 16, 512]
+        trial = 10
+    elif model == 'generator':
+        in_shape = [128,]
+        trial = 10
+    print()
+    import time
+    import generator
+    module_inputs = tf.keras.Input(shape=in_shape)
+    for d in devices:
+        for m in m_per_groups:
+            for decom in decompositions:
+                if model == 'module':
+                    module_outputs = DecorelationNormalization(m_per_group=m,
+                                                               decomposition=decom,
+                                                               device=d)(module_inputs)
+                    module_model = tf.keras.Model(inputs=module_inputs, outputs=module_outputs)
+                elif model == 'generator':
+                    module_model = generator.make_generator(block_sizes=[256, 256, 256],
+                                                            decomposition=decom,
+                                                            whitten_m=m,
+                                                            block_norm='d',
+                                                            last_norm='d',
+                                                            block_coloring='uconv',
+                                                            last_coloring='uconv',
+                                                            device=d,
+                                                            )
+
+                inputs1 = np.random.normal(size=[1] + in_shape)
+                inputs2 = np.random.normal(size=[batch_size] + in_shape)
+
+                module_model.predict(inputs1)  # warm up devices
+                t1 = time.time()
+                for _ in range(trial):
+                    outputs = module_model.predict(inputs2)
+                t2 = time.time()
+                item = ','.join(['device_'+d, 'm_'+str(m), 'decomposition_'+decom])
+                print(item, ':', (t2 - t1)/trial)
+
+
 def dbn_speed(model='module', devices=['cpu', 'gpu'],
               m_per_groups=[8, 16, 32, 64],
               decompositions=['cholesky', 'zca', 'iter_norm'],
@@ -700,5 +746,7 @@ def speed_on_table5():
 
 
 if __name__ == "__main__":
-    speed_on_figure8()
-    speed_on_table5()
+    # speed_on_figure8()
+    # speed_on_table5()
+    dbn_speed_old('module')
+    dbn_speed_old('generator')
