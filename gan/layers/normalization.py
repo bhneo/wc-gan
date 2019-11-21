@@ -692,7 +692,7 @@ def test_dbn():
 
 def speed_on_figure8():
     model = 'generator'
-    block_sizes = [256, 256, 256]
+    block_sizes = [256, 128, 64]
     arch = 'dcgan'
     # Figure 8
     # W/O
@@ -726,7 +726,42 @@ def speed_on_figure8():
               arch=arch)
 
 def speed_on_table5():
-    pass
+    # Table 5
+    model = 'generator'
+
+    block_sizes = [512, 256, 128]
+    arch = 'dcgan'
+    dbn_speed(model,
+              m_per_groups=[0], decompositions=['cholesky'],
+              block_sizes=block_sizes, norm='d', coloring='uconv',
+              arch=arch)
+    dbn_speed(model,
+              m_per_groups=[64], decompositions=['zca'],
+              block_sizes=block_sizes, norm='d', coloring='uconv',
+              arch=arch)
+    dbn_speed(model,
+              m_per_groups=[0], decompositions=['iter_norm'],
+              block_sizes=block_sizes, norm='d', coloring='uconv',
+              arch=arch)
+
+
+    block_sizes = [256, 256, 256]
+    arch = 'res'
+    dbn_speed(model,
+              m_per_groups=[0], decompositions=['cholesky'],
+              block_sizes=block_sizes, norm='d', coloring='uconv',
+              arch=arch)
+    dbn_speed(model,
+              m_per_groups=[64], decompositions=['zca'],
+              block_sizes=block_sizes, norm='d', coloring='uconv',
+              arch=arch)
+    dbn_speed(model,
+              m_per_groups=[0], decompositions=['iter_norm'],
+              block_sizes=block_sizes, norm='d', coloring='uconv',
+              arch=arch)
+
+
+
 
 
 if __name__ == "__main__":
