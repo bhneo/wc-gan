@@ -34,7 +34,7 @@ def speed(in_shape, output_channels, input_cls_shape,
                                fully_diff_spectral=fully_diff_spectral,
                                spectral_iterations=spectral_iterations,
                                conv_singular=conv_singular,)
-    generator.summary()
+    # generator.summary()
 
     print()
     print('start test on {}:'.format(d))
