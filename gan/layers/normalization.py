@@ -761,9 +761,6 @@ def speed_on_table5():
               arch=arch)
 
 
-
-
-
 if __name__ == "__main__":
     # speed_on_figure8()
     speed_on_table5()
