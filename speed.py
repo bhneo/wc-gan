@@ -11,35 +11,6 @@ from generator import make_generator
 import numpy as np
 
 
-def dbn_speed(model='module', devices=['cpu', 'gpu'],
-              m_per_groups=[8, 16, 32, 64],
-              decompositions=['cholesky', 'zca', 'iter_norm'],
-              iter_nums=5,
-              batch_size=64,
-              block_sizes=[256, 256, 256],
-              norm='d',
-              coloring='uconv',
-              arch='dcgan',
-              repeat=100):
-    print('start test:')
-    print('model:{}, arch:{}, blocks:{}, norm:{}, coloring:{}'.format(model, arch, block_sizes, norm, coloring))
-    if model == 'module':
-        in_shape = [16, 16, 512]
-    elif model == 'generator':
-        in_shape = [128, ]
-    else:
-        in_shape = [128, ]
-    print()
-    if norm != 'd':
-        devices = ['gpu']
-        m_per_groups = [1]
-        decompositions = ['None']
-    for d in devices:
-        for m in m_per_groups:
-            for decom in decompositions:
-                speed(in_shape, model, m, decom, d, block_sizes, norm, iter_nums, coloring, arch, batch_size, repeat)
-
-
 def speed(in_shape, output_channels, input_cls_shape,
           block_sizes, resamples, first_block_shape,
           number_of_classes, concat_cls,
