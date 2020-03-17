@@ -22,8 +22,6 @@ def speed(in_shape, output_channels, input_cls_shape,
           gan_type, arch, spectral, before_conv,
           fully_diff_spectral, spectral_iterations, conv_singular,
           batch_size=64, repeat=100):
-    print('start test on {}:'.format(d))
-    print('model:generator, arch:{}, blocks:{}, decom:{}'.format(arch, block_sizes, decom))
     generator = make_generator(input_noise_shape=in_shape, output_channels=output_channels, input_cls_shape=input_cls_shape,
                                block_sizes=block_sizes, resamples=resamples, first_block_shape=first_block_shape,
                                number_of_classes=number_of_classes, concat_cls=concat_cls,
@@ -38,6 +36,9 @@ def speed(in_shape, output_channels, input_cls_shape,
                                conv_singular=conv_singular,)
     generator.summary()
 
+    print()
+    print('start test on {}:'.format(d))
+    print('model:generator, arch:{}, blocks:{}, decom:{}'.format(arch, block_sizes, decom))
     inputs1 = np.random.normal(size=[1] + in_shape)
     inputs2 = np.random.normal(size=[batch_size] + in_shape)
 
@@ -56,13 +57,13 @@ def main():
     generator_params = get_generator_params(args)
     print()
     for device in ['cpu', 'gpu']:
-        speed(generator_params.in_shape, generator_params.output_channels, generator_params.input_cls_shape,
+        speed([128, ], generator_params.output_channels, generator_params.input_cls_shape,
               generator_params.block_sizes, generator_params.resamples, generator_params.first_block_shape,
               generator_params.number_of_classes, generator_params.concat_cls,
               generator_params.block_norm, generator_params.block_coloring,
               generator_params.last_norm, generator_params.last_coloring,
               generator_params.filters_emb,
-              generator_params.m, generator_params.decom, device,
+              generator_params.whitten_m, generator_params.decomposition, device,
               generator_params.iter_num, generator_params.instance_norm,
               generator_params.gan_type, generator_params.arch, generator_params.spectral, generator_params.before_conv,
               generator_params.fully_diff_spectral, generator_params.spectral_iterations, generator_params.conv_singular,
