@@ -4,13 +4,10 @@ import time
 
 sys.path.append(os.path.abspath('./gan'))
 
-from gan.args import parser_with_default_args, get_generator_params, get_discriminator_params
+from gan.args import parser_with_default_args, get_generator_params
 
 from generator import make_generator
-from discriminator import make_discriminator
 
-from gan.layers.normalization import DecorelationNormalization
-import tensorflow as tf
 import numpy as np
 
 
@@ -87,7 +84,7 @@ def main():
     args = parser_with_default_args()
     generator_params = get_generator_params(args)
     print()
-    for device in ['cpu','gpu']:
+    for device in ['cpu', 'gpu']:
         speed(generator_params.in_shape, generator_params.output_channels, generator_params.input_cls_shape,
               generator_params.block_sizes, generator_params.resamples, generator_params.first_block_shape,
               generator_params.number_of_classes, generator_params.concat_cls,
