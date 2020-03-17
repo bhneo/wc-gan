@@ -3,15 +3,6 @@
 [Check out our paper](https://arxiv.org/abs/1806.00420)
 
 
-<p>
-  <table>
-	<tr>
-           <td> <img src="sup-mat/cifar10_SN_uncond.png" width="350"/> <figcaption align="center">Unsupervised Cifar-10 (IS 8.66)</figcaption> </td>
-           <td> <img src="sup-mat/cifar10_SN_cls.png" width="350"/> <figcaption align="center">Supervised Cifar-10 (IS 9.06)</figcaption> </td>
-        </tr>
-  </table> 
-</p>
-
 
 [<img src="sup-mat/iclr-2019-wc.png"/>](sup-mat/iclr-2019-wc.pdf)
 
