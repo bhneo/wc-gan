@@ -25,32 +25,8 @@ import tensorflow as tf
 
 
 def get_dataset(dataset, batch_size, supervised = False, noise_size=(128, )):
-    if dataset == 'mnist':
-        from tensorflow.python.keras.datasets import mnist
-        (X, y), (X_test, y_test) = mnist.load_data()
-        X = X.reshape((X.shape[0], X.shape[1], X.shape[2], 1))
-        X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], X_test.shape[2], 1))
-    elif dataset == 'cifar10':
-        from cifar10 import load_data
-        (X, y), (X_test, y_test) = load_data()
-    elif dataset == 'cifar100':
-        from cifar100 import load_data
-        (X, y), (X_test, y_test) = load_data()
-    elif dataset == 'fashion-mnist':
-        from fashion_mnist import load_data
-        (X, y), (X_test, y_test) = load_data()
-        X = X.reshape((X.shape[0], X.shape[1], X.shape[2], 1))
-        X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], X_test.shape[2], 1))
-    elif dataset == 'stl10':
-        from stl10 import load_data
-        (X, y), (X_test, y_test) = load_data()
-        assert not supervised
-    elif dataset == 'tiny-imagenet':
-        from tiny_imagenet import load_data
-        (X, y), (X_test, y_test) = load_data()
-    elif dataset == 'imagenet':
-        from imagenet import ImageNetdataset
-        return ImageNetdataset('../imagenet-resized', '../imagenet-resized-val/val', batch_size=batch_size, noise_size=noise_size, conditional=supervised)
+    from cifar10 import load_data
+    (X, y), (X_test, y_test) = load_data()
 
     return LabeledArrayDataset(X=X, y=y if supervised else None, X_test=X_test, y_test=y_test,
                                batch_size=batch_size, noise_size=noise_size)
