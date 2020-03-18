@@ -161,7 +161,7 @@ def get_lr_decay_schedule(args):
 
 def main():
     args = parser_with_default_args()
-
+    print(args)
     dataset = get_dataset(dataset=args.dataset,
                           batch_size=args.batch_size,
                           supervised=args.gan_type is not None)
